@@ -3,8 +3,6 @@
 // todo: backtracking on the edge of chunk
 // todo: eof as character (.end())
 
-const noop = () => {}
-
 const replaceEntities = (str) => {
   let ret = '', mode = 'normal', ent = '', t = 0
   for (let i = 0; i < str.length; ++i) {
@@ -60,12 +58,13 @@ export const fnlxml = (next) => {
   }
 
   const todo = (str) => lit(str)
-  const document = (ii) => seq([[prolog], [element], zom(Misc)], ii)
-  const seq = (its, ii = -1, ondone = noop, p = 0) => {
+  const document = (ii) => seq([[prolog], [element], zom(Misc)])
+  const seq = (its) => {
+    let p = 0
     const eat = (c, i) => {
       const rit = its[p]
       if (Array.isArray(rit)) {
-        console.log("RIT", rit, ii)
+        // console.log("RIT", rit, ii)
         const jj = i - 1 //ii === -1? i - 1: ii
         its[p] = rit[0](jj)
       }
@@ -78,9 +77,6 @@ export const fnlxml = (next) => {
         if (p >= its.length) {
           // console.log("DONE", p)
           // p = 0
-
-          // todo: perhaps return result of ondone along w/ status & j
-          ondone(i)
           return ['done', j]
         }
       }
@@ -89,12 +85,13 @@ export const fnlxml = (next) => {
     return eat
   }
 
-  const alt = (its, ii = -1, p = 0) => {
+  const alt = (its, ii = -1) => {
+    let p = 0
     const eat = (c, i) => {
       if (ii === -1) ii = i - 1
       const rit = its[p]
       if (Array.isArray(rit)) {
-        console.log('ALTRIT')
+        // console.log('ALTRIT')
         its[p] = rit[0](ii)
       }
       const it = its[p]
@@ -103,7 +100,7 @@ export const fnlxml = (next) => {
       if (sname === 'fail') {
         p += 1
         if (p >= its.length) {
-          console.log('alt failing')
+          // console.log('alt failing')
           return ['fail', j]
         }
         return ['pending', ii]
@@ -113,15 +110,14 @@ export const fnlxml = (next) => {
     return eat
   }
   
-  const zom = (itc, ii = -1, ondone = noop, it = itc(ii)) => {
+  const zom = (itc, ii = -1) => {
+    let it = itc(ii)
     const eat = (c, i) => {
       // todo: fix this -- because it doesn't return i, instead of </rss> for ETag we get ""
       if (c === undefined) return ['done']
       if (ii === -1) ii = i - 1
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
-        console.log('zom done')
-        ondone(i)
         return ['done', ii]
       }
       if (sname === 'done') {
@@ -140,7 +136,7 @@ export const fnlxml = (next) => {
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
         if (cnt === 0) return ['fail', i]
-        console.log('oom done')
+        // console.log('oom done')
         return ['done', ii]
       }
       if (sname === 'done') {
@@ -175,7 +171,7 @@ export const fnlxml = (next) => {
     })
 
     const ondone = (jj) => {
-      console.log(chunks)
+      // console.log(chunks)
       const lastChunk = chunks.at(-1)
       const lcl = lastChunk.length
       const combined = chunks.join('')
@@ -184,7 +180,7 @@ export const fnlxml = (next) => {
 
       chunks = []
 
-      console.log(`${name} DONE`)
+      // console.log(`${name} DONE`)
 
       next.emit(name, shouldReplaceEntities? replaceEntities(slice): slice)
       return uccb()
@@ -204,7 +200,7 @@ export const fnlxml = (next) => {
     [ii => opt(XMLDecl(ii))],
     zom(Misc),
     opt(seq([doctypedecl(), zom(Misc)]))
-  ], ii)
+  ])
 
   const XMLDecl = (ii) => seq([
     lit('<?xml'),
@@ -213,7 +209,7 @@ export const fnlxml = (next) => {
     opt(SDDecl()),
     opt(S()),
     lit('?>'),
-  ], ii)
+  ])
 
   const VersionInfo = (ii) => seq([
     S(),
@@ -224,15 +220,15 @@ export const fnlxml = (next) => {
       lit("'1.0'"),
       lit('"1.0"'),
     ]),
-  ], ii)
+  ])
 
   const EncodingDecl = () => todo("EncodingDecl")
   const SDDecl = () => todo("SDDecl")
 
   const Misc = (ii) => alt([
     [Comment],
-    PI(),
-    S(),
+    [PI],
+    [S],
   ], ii)
 
   const doctypedecl = (ii) => seq([
@@ -243,31 +239,32 @@ export const fnlxml = (next) => {
     opt(S()),
     opt(seq([char('['), intSubset(), char(']'), opt(S())])),
     char('>'),
-  ], ii)
+  ])
 
   const ExternalID = () => todo('ExternalID')
   const intSubset = () => todo('intSubset')
 
   const element = (ii) => {
-    console.log("ELELEMENENT2")
+    // console.log("ELELEMENENT2")
     return seq([
       [STag1], 
       alt([
         [EETagC],
-        seq([[STagC], [content], [ETag]], -1)
+        seq([[STagC], [content], [ETag]])
       ]),
-    ], ii)
+    ])
   }
 
   const STag1 = (ii) => emits('STag1', ii, seq([
     char('<'),
     [ii => emits('STagName', ii, Name(ii))],
+    opt(seq([[ii => emits('FirstAttrS', ii, S(ii))], [Attribute]])),
     zom(() => seq([S(), [Attribute]])),
     opt(S()),
-  ], ii))
+  ]))
 
-  const STagC = (ii) => char('>')
-  const EETagC = (ii) => lit('/>')
+  const STagC = (ii) => emits('STagC', ii, char('>'))
+  const EETagC = (ii) => emits('EETagC', ii, lit('/>'))
 
   // const element = (ii) => {
   //   console.log("ELELEMENENT")
@@ -298,7 +295,7 @@ export const fnlxml = (next) => {
     [ii => emits('ETagName', ii, Name(ii))],
     opt(S()),
     char('>'),
-  ], ii))
+  ]))
 
   const content = (ii) => emits('content', ii, seq([
     [ii => opt(CharData(ii))],
@@ -313,7 +310,7 @@ export const fnlxml = (next) => {
       ], -1),
       [ii => opt(CharData(ii))],
     ]))
-  ], ii))
+  ]))
   
   // {
   //   let chunks = [getCurrentChunk()]
@@ -351,13 +348,13 @@ export const fnlxml = (next) => {
   //   ], ii, ondone)
   // }
 
-  const Name = (ii) => seq([NameStartChar(), zom(NameChar)], ii)
+  const Name = (ii) => seq([NameStartChar(), zom(NameChar)])
   const Attribute = (ii) => emits('Attribute', ii, seq([
     [ii => emits('AttName', ii, Name(ii))], 
-    Eq(), 
+    [Eq], 
     [AttValue],
-  ], ii))
-  const Eq = (ii) => seq([opt(S()), char('='), opt(S())], ii)
+  ]))
+  const Eq = (ii) => seq([opt(S()), char('='), opt(S())])
   // const AttValue = (ii) => alt([
   //   seq([char('"'), [ii => emits(
   //     'AttValue', ii, zom(() => alt([
@@ -399,7 +396,7 @@ export const fnlxml = (next) => {
       if (es[0] === 'fail') {
         cend = lit(end)
       } else if (es[0] === 'done') {
-        console.log('DONE', es)
+        // console.log('DONE', es)
         return [es[0], es[1] - end.length]
       }
 
@@ -423,13 +420,13 @@ export const fnlxml = (next) => {
   // could parametrize charsUntilToken(end, itc = Char)
   // pass () => not('<&') as itc -- that would do it
   // this rule is for compatibility w/ SGML
-  const CharData = (ii) => emits('CharData', ii, zom(() => not('<&'), ii), true)
+  const CharData = (ii) => emits('CharData', ii, zom(() => not('<&'), ii))
 
   const CDSect = (ii) => seq([
     [ii => emits('openCData', ii, lit('<![CDATA['))], 
     [CData], 
     [ii => emits('closeCData', ii, lit(']]>'))],
-  ], ii)
+  ])
   // const CData = (ii) => oom(Char)
   const CData = (ii) => emits('CData', ii, charsUntilToken(']]>')(ii)) 
   const Char = (ii) => codePointRanges(0x09, 0x0A, 0x0D, [0x20, 0xD7FF], [0xE000, 0xFFFD], [0x10000, 0x10FFFF])
@@ -452,7 +449,7 @@ export const fnlxml = (next) => {
     lit('<!--'),
     [charsUntilToken('-->')],
     lit('-->'),
-  ], ii))
+  ]))
 
   const not = (chars) => (c, i) => {
     if (chars.includes(c)) return ['fail', i]
@@ -535,7 +532,7 @@ export const fnlxml = (next) => {
     if (str[index] === c) {
       ++index
       if (index >= str.length) return ['done', i]
-      console.log(str, index, i)
+      // console.log(str, index, i)
       return ['pending', i]
     }
     return ['fail', i]
@@ -545,7 +542,7 @@ export const fnlxml = (next) => {
 
   let status
 
-  const start = document(0, next)
+  const start = document(0)
 
   return {
     chunk(str) {

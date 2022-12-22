@@ -40,22 +40,56 @@ stream.chunk(`<?xml version="1.0"?>
 stream.end()
 import {escape} from 'https://cdn.jsdelivr.net/gh/jevko/jevko.js@v0.1.5/mod.js'
 
+const expected = `\\rss [version=[2.0]
+\\channel [
+\\title [Jevko updates]
+\\description [Latest official "updates" on the Jevko syntax]
+\\link [https://jevko.org]
+\\esc [\`[\`\`\`]]
+
+
+\\item [t=[u&me]
+  \\title [Sun, 20 Nov 2022 01:30:00 +0000]
+  
+  \\link [https://github.com/jevko/jevkoml]
+  \\pubDate [Sun, 20 Nov 2022 01:30:00 +0000]
+  \\description [<p>Created <a href="https://github.com/jevko/community">https://github.com/jevko/community</a> -- a place to feature various Jevko-related things (including Jevko parsers in different languages) created by various authors. Contributions welcome!</p>
+  <p>#jevko #syntax #community #contributions</p>]
+]
+]
+]`
+
 let ret = ''
+let hasAttrs = false
 const stream2 = fnlxml({
   end() {
     console.log('done')
     console.log(ret)
+    console.assert(ret === expected)
   },
   emit(name, str_) {
     const str = escape(str_)
     if (name === 'STagName') ret += `\\${str} [`
     else if (name === 'AttValue') ret += str
     else if (name === 'Reference') ret += resolveEntity2(str)
-    else if (name === 'AttName') ret += `\\${str}=[`
     else if (name === 'Attribute') ret += `]`
     else if (name === 'ETagName') ret += `]`
     else if (name === 'CData') ret += str
     else if (name === 'CharData') ret += str
+
+    else if (name === 'AttName') ret += `${str}=[`
+
+    // else if (name === 'AttName') ret += `${str} [`
+    // else if (name === 'FirstAttrS') {
+    //   hasAttrs = true
+    //   ret += '['
+    // }
+    // else if (name === 'STagC' || name === 'EETagC') {
+    //   if (hasAttrs) {
+    //     ret += ']'
+    //     hasAttrs = false
+    //   }
+    // }
     // else throw Error('oops' + name)
   }
 })
