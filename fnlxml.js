@@ -177,7 +177,8 @@ export const fnlxml = (next) => {
 
       chunks = []
 
-      next.emit(name, slice)
+      // todo: if no next.emit then entire emits is pointless -- exit early/make it a noop
+      next.emit?.(name, slice)
       return uccb()
     }
 
@@ -597,7 +598,7 @@ export const fnlxml = (next) => {
     end() {
       status = start(undefined, i)
       const [sname, c] = status
-      if (sname === 'done') return next.end()
+      if (sname === 'done') return next.end?.()
       // todo: fix
       // if (sname === 'done' && c === undefined) return next.end()
 
