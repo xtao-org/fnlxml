@@ -60,7 +60,7 @@ export const fnlxml = (next) => {
 
   const seq = (its, debugName) => (ii = null) => {
     let p = 0
-    let it = its[p][0](ii)
+    let it = its[p](ii)
     const eat = (c, i) => {
       const [sname, j] = it(c, i)
       if (sname === 'fail') return ['fail', j]
@@ -72,7 +72,7 @@ export const fnlxml = (next) => {
           return ['done', j]
         }
         // x = true
-        it = its[p][0](j)
+        it = its[p](j)
       }
       return ['pending', j]
     }
@@ -81,7 +81,7 @@ export const fnlxml = (next) => {
 
   const alt = (its, debugName) => (ii = null) => {
     let p = 0
-    let it = its[p][0](ii)
+    let it = its[p](ii)
     // console.log("ALT INIT", ii, its, debugName)
     const eat = (c, i) => {
       const s = it(c, i)
@@ -91,7 +91,7 @@ export const fnlxml = (next) => {
         if (p >= its.length) {
           return ['fail', j]
         }
-        it = its[p][0](ii)
+        it = its[p](ii)
         return ['pending', ii]
       }
       return [sname, j]
@@ -306,65 +306,65 @@ export const fnlxml = (next) => {
   const todo = lit
 
   const S = oom(alt([
-    [char('\u0020')], 
-    [char('\u0009')], 
-    [char('\u000D')], 
-    [char('\u000A')],
+    char('\u0020'), 
+    char('\u0009'), 
+    char('\u000D'), 
+    char('\u000A'),
   ], 'SSSSSSSSSSSs'), 'SSSSSS')
-  const Eq = seq([[opt(S)], [char('=')], [opt(S)]])
+  const Eq = seq([opt(S), char('='), opt(S)])
   // '1.' [0-9]+
   const VersionNum = seq([
-    [lit('1.')],
-    [oom(range('0', '9'))],
+    lit('1.'),
+    oom(range('0', '9')),
   ])
   //  S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
   const VersionInfo = seq([
-    [S],
-    [lit('version')],
-    [Eq],
-    [alt([
-      [seq([[char("'")], [VersionNum], [char("'")]])],
-      [seq([[char('"')], [VersionNum], [char('"')]])],
-    ])],
+    S,
+    lit('version'),
+    Eq,
+    alt([
+      seq([char("'"), VersionNum, char("'")]),
+      seq([char('"'), VersionNum, char('"')]),
+    ]),
   ])
   // [A-Za-z] ([A-Za-z0-9._] | '-')*    /* Encoding name contains only Latin characters */
   const EncName = seq([
-    [ranges(['A', 'Z'], ['a', 'z'])],
-    [zom(alt([
-      [ranges(['A', 'Z'], ['a', 'z'], ['0', '9'])],
-      [char('.')],
-      [char('_')],
-      [char('-')],
-    ], 'ENNENENNENEN'))]
+    ranges(['A', 'Z'], ['a', 'z']),
+    zom(alt([
+      ranges(['A', 'Z'], ['a', 'z'], ['0', '9']),
+      char('.'),
+      char('_'),
+      char('-'),
+    ], 'ENNENENNENEN'))
   ], 'EncName')
   // S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
   const EncodingDecl = seq([
-    [S],
-    [lit('encoding')],
-    [Eq],
-    [alt([
-      [seq([[char("'")], [EncName], [char("'")]])],
-      [seq([[char('"')], [EncName], [char('"')]])],
-    ])]
+    S,
+    lit('encoding'),
+    Eq,
+    alt([
+      seq([char("'"), EncName, char("'")]),
+      seq([char('"'), EncName, char('"')]),
+    ])
   ])
 
   // S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"'))     [VC: Standalone Document Declaration]
   const SDDecl = seq([
-    [S],
-    [lit('standalone')],
-    [Eq],
-    [alt([
-      [seq([[char("'")], [alt([[lit('yes')], [lit('no')]])], [char("'")]])],
-      [seq([[char('"')], [alt([[lit('yes')], [lit('no')]])], [char('"')]])],
-    ])]
+    S,
+    lit('standalone'),
+    Eq,
+    alt([
+      seq([char("'"), alt([lit('yes'), lit('no')]), char("'")]),
+      seq([char('"'), alt([lit('yes'), lit('no')]), char('"')]),
+    ])
   ])
   const XMLDecl = seq([
-    [lit('<?xml')],
-    [VersionInfo],
-    [opt(EncodingDecl)],
-    [opt(SDDecl)],
-    [opt(S)],
-    [lit('?>')],
+    lit('<?xml'),
+    VersionInfo,
+    opt(EncodingDecl),
+    opt(SDDecl),
+    opt(S),
+    lit('?>'),
   ], 'XMLDEcl')
   // ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
   const NameStartChar = ranges2(":",["A","Z"],"_",["a","z"],["\u00c0","\u00d6"],["\u00d8","\u00f6"],["\u00f8","\u02ff"],["\u0370","\u037d"],["\u037f","\u1fff"],["\u200c","\u200d"],["\u2070","\u218f"],["\u2c00","\u2fef"],["\u3001","\ud7ff"],["\uf900","\ufdcf"],["\ufdf0","\ufffd"],["\ud800\udc00","\udb7f\udfff"])
@@ -391,27 +391,27 @@ export const fnlxml = (next) => {
   // ], ii)
   // NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
   const NameChar = alt([
-    [NameStartChar],
-    [char('-')],
-    [char('.')],
-    [range('0', '9')],
-    [char('\xB7')],
-    [range('\u0300', '\u036F')],
-    [range('\u203F', '\u2040')],
+    NameStartChar,
+    char('-'),
+    char('.'),
+    range('0', '9'),
+    char('\xB7'),
+    range('\u0300', '\u036F'),
+    range('\u203F', '\u2040'),
   ])
-  const Name = seq([[NameStartChar], [zom(NameChar)]], 'Name')
+  const Name = seq([NameStartChar, zom(NameChar)], 'Name')
   // SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")
   const SystemLiteral = alt([
-    [seq([
-      [char('"')],
-      [zom(not('"'))],
-      [char('"')],
-    ])],
-    [seq([
-      [char("'")],
-      [zom(not("'"))],
-      [char("'")],
-    ])],
+    seq([
+      char('"'),
+      zom(not('"')),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(not("'")),
+      char("'"),
+    ]),
   ])
   // #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
   const piclr = []
@@ -425,282 +425,282 @@ export const fnlxml = (next) => {
   const PubidChar = codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
   // '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
   const PubidLiteral = alt([
-    [seq([
-      [char('"')],
-      [zom(PubidChar)],
-      [char('"')],
-    ])],
-    [seq([
-      [char("'")],
-      [zom(todo('PubidChar - "\'"'))],
-      [char("'")],
-    ])],
+    seq([
+      char('"'),
+      zom(PubidChar),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(todo('PubidChar - "\'"')),
+      char("'"),
+    ]),
   ])
   // ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral
   const ExternalID = alt([
-    [seq([
-      [lit('SYSTEM')],
-      [S],
-      [SystemLiteral],
-    ])],
-    [seq([
-      [lit('PUBLIC')],
-      [S],
-      [PubidLiteral],
-      [S],
-      [SystemLiteral]
-    ])]
+    seq([
+      lit('SYSTEM'),
+      S,
+      SystemLiteral,
+    ]),
+    seq([
+      lit('PUBLIC'),
+      S,
+      PubidLiteral,
+      S,
+      SystemLiteral,
+    ]),
   ])
   // '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'
   const Mixed = alt([
-    [seq([
-      [char('(')],
-      [opt(S)],
-      [lit('#PCDATA')],
-      [zom(seq([
-        [opt(S)],
-        [char('|')],
-        [opt(S)],
-        [Name],
-      ]))],
-      [opt(S)],
-      [lit(')*')],
-    ])],
-    [seq([
-      [char('(')],
-      [opt(S)],
-      [lit('#PCDATA')],
-      [opt(S)],
-      [char(')')],
-    ])],
+    seq([
+      char('('),
+      opt(S),
+      lit('#PCDATA'),
+      zom(seq([
+        opt(S),
+        char('|'),
+        opt(S),
+        Name,
+      ])),
+      opt(S),
+      lit(')*'),
+    ]),
+    seq([
+      char('('),
+      opt(S),
+      lit('#PCDATA'),
+      opt(S),
+      char(')'),
+    ]),
   ])// note: hack
   // ?todo: rem
   const CATCHALL = seq([
-    [lit('<!')],
-    [zom(not('>'))],
-    [char('>')],
+    lit('<!'),
+    zom(not('>')),
+    char('>'),
   ])
   // (Name | choice | seq) ('?' | '*' | '+')?
   const cp = ii => seq([
-    [alt([
-      [Name],
-      [choice],
-      [Seq],
-    ])],
-    [opt(alt([
-      [char('?')],
-      [char('*')],
-      [char('+')],
-    ]))]
+    alt([
+      Name,
+      choice,
+      Seq,
+    ]),
+    opt(alt([
+      char('?'),
+      char('*'),
+      char('+'),
+    ]))
   ])(ii)
   // '(' S? cp ( S? '|' S? cp )+ S? ')'    [VC: Proper Group/PE Nesting]
   const choice = seq([
-    [char('(')],
-    [opt(S)],
-    [cp],
-    [oom(seq([
-      [opt(S)],
-      [char('|')],
-      [opt(S)],
-      [cp],
-    ]))],
-    [opt(S)],
-    [char(')')],
+    char('('),
+    opt(S),
+    cp,
+    oom(seq([
+      opt(S),
+      char('|'),
+      opt(S),
+      cp,
+    ])),
+    opt(S),
+    char(')'),
   ])
   // '(' S? cp ( S? ',' S? cp )* S? ')'    [VC: Proper Group/PE Nesting]
   const Seq = seq([
-    [char('(')],
-    [opt(S)],
-    [cp],
-    [zom(seq([
-      [opt(S)],
-      [char(',')],
-      [opt(S)],
-      [cp],
-    ]))],
-    [opt(S)],
-    [char(')')],
+    char('('),
+    opt(S),
+    cp,
+    zom(seq([
+      opt(S),
+      char(','),
+      opt(S),
+      cp,
+    ])),
+    opt(S),
+    char(')'),
   ])
   // (choice | seq) ('?' | '*' | '+')?
   const children = seq([
-    [alt([
-      [choice],
-      [Seq],
-    ])],
-    [opt(alt([
-      [char('?')],
-      [char('*')],
-      [char('+')],
-    ]))]
+    alt([
+      choice,
+      Seq,
+    ]),
+    opt(alt([
+      char('?'),
+      char('*'),
+      char('+'),
+    ])),
   ])
   // 'EMPTY' | 'ANY' | Mixed | children
   const contentspec = alt([
-    [lit('EMPTY')],
-    [lit('ANY')],
-    [Mixed],
-    [children],
+    lit('EMPTY'),
+    lit('ANY'),
+    Mixed,
+    children,
   ])
   // '<!ELEMENT' S Name S contentspec S? '>'    [VC: Unique Element Type Declaration]
   const elementdecl = seq([
-    [lit('<!ELEMENT')],
-    [S],
-    [Name],
-    [S],
-    [contentspec],
-    [opt(S)],
-    [char('>')],
+    lit('<!ELEMENT'),
+    S,
+    Name,
+    S,
+    contentspec,
+    opt(S),
+    char('>'),
   ])
   // '<!ATTLIST' S Name AttDef* S? '>'
   const AttlistDecl = todo('AttlistDecl')
 
   // '%' Name ';'   
   const PEReference = seq([
-    [char('%')],
-    [Name],
-    [char(';')],
+    char('%'),
+    Name,
+    char(';'),
   ])
   const EntityRef = seq([
-    [char('&')],
-    [Name],
-    [char(';')],
+    char('&'),
+    Name,
+    char(';'),
   ])
   const CharRef = alt([
-    [seq([
-      [lit('&#')],
-      [oom(range('0', '9'))],
-      [char(';')],
-    ])],
-    [seq([
-      [lit('&#x')],
-      [oom(ranges(['0', '9'], ['a', 'f'], ['A', 'F']))],
-      [char(';')],
-    ])]
+    seq([
+      lit('&#'),
+      oom(range('0', '9')),
+      char(';'),
+    ]),
+    seq([
+      lit('&#x'),
+      oom(ranges(['0', '9'], ['a', 'f'], ['A', 'F'])),
+      char(';'),
+    ]),
   ])
   const Reference = emits('Reference', alt([
-    [EntityRef],
-    [CharRef],
+    EntityRef,
+    CharRef,
   ]))
   // '"' ([^%&"] | PEReference | Reference)* '"' |  "'" ([^%&'] | PEReference | Reference)* "'"
   const EntityValue = alt([
-    [seq([
-      [char('"')],
-      [zom(alt([
-        [not('%&"')],
-        [PEReference],
-        [Reference],
-      ], '(((((((DEBUG))))))))evn'))],
-      [char('"')],
-    ])],
-    [seq([
-      [char("'")],
-      [zom(alt([
-        [not("%&'")],
-        [PEReference],
-        [Reference],
-      ], '(((((((((((((((((((('))],
-      [char("'")],
-    ])],
+    seq([
+      char('"'),
+      zom(alt([
+        not('%&"'),
+        PEReference,
+        Reference,
+      ], '(((((((DEBUG))))))))evn')),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(alt([
+        not("%&'"),
+        PEReference,
+        Reference,
+      ], '((((((((((((((((((((')),
+      char("'"),
+    ]),
   ])
   const NDataDecl = todo('NDataDecl')
   // EntityValue | (ExternalID NDataDecl?)
   const EntityDef = alt([
-    [EntityValue],
-    [seq([
-      [ExternalID],
-      [opt(NDataDecl)],
-    ])]
+    EntityValue,
+    seq([
+      ExternalID,
+      opt(NDataDecl),
+    ]),
   ])
   // '<!ENTITY' S Name S EntityDef S? '>'
   const GEDecl = seq([
-    [lit('<!ENTITY')],
-    [S],
-    [Name],
-    [S],
-    [EntityDef],
-    [opt(S)],
-    [char('>')],
+    lit('<!ENTITY'),
+    S,
+    Name,
+    S,
+    EntityDef,
+    opt(S),
+    char('>'),
   ])
   // EntityValue | ExternalID
   const PEDef = alt([
-    [EntityValue],
-    [ExternalID],
+    EntityValue,
+    ExternalID,
   ])
   // '<!ENTITY' S '%' S Name S PEDef S? '>'
   const PEDecl = seq([
-    [lit('<!ENTITY')],
-    [S],
-    [char('%')],
-    [S],
-    [Name],
-    [S],
-    [PEDef],
-    [opt(S)],
-    [char('>')],
+    lit('<!ENTITY'),
+    S,
+    char('%'),
+    S,
+    Name,
+    S,
+    PEDef,
+    opt(S),
+    char('>'),
   ])
   // GEDecl | PEDecl
   const EntityDecl = alt([
-    [GEDecl],
-    [PEDecl],
+    GEDecl,
+    PEDecl,
   ])
   const NotationDecl = todo('NotationDecl')
   // todo: PITarget ::= Name - ( ( 'X' | 'x' ) ( 'M' | 'm' ) ( 'L' | 'l' ) )
   const PITarget = Name
   const PI = seq([
-    [lit('<?')],
-    [PITarget],
-    [opt(seq([
-      [S],
+    lit('<?'),
+    PITarget,
+    opt(seq([
+      S,
       // todo: same as comment & cdata, except should probly backtrack to before ?> after it's found
       // or is that overcomplicating it?
       // this PITarget and S create a problem here
-      [charsUntilToken('?>')],
-    ]))],
-    [lit('?>')],
+      charsUntilToken('?>'),
+    ])),
+    lit('?>'),
   ], 'PI')
   const Comment = emits('Comment', seq([
-    [lit('<!--')],
-    [charsUntilToken('-->')],
-    [lit('-->')],
+    lit('<!--'),
+    charsUntilToken('-->'),
+    lit('-->'),
   ], 'COMMENT'))
   // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
   const markupdecl = alt([
-    [elementdecl],
-    [AttlistDecl],
-    [EntityDecl],
-    [NotationDecl],
-    [PI],
-    [Comment],
-    [CATCHALL],
+    elementdecl,
+    AttlistDecl,
+    EntityDecl,
+    NotationDecl,
+    PI,
+    Comment,
+    CATCHALL,
   ])
   // PEReference | S     [WFC: PE Between Declarations]
   const DeclSep = alt([
-    [PEReference],
-    [S],
+    PEReference,
+    S,
   ])
   // (markupdecl | DeclSep)*
   const intSubset = zom(alt([
-    [markupdecl],
-    [DeclSep],
+    markupdecl,
+    DeclSep,
   ], 'IIIIIIIIIIIIII'))
   const doctypedecl = seq([
-    [lit('<!DOCTYPE')],
-    [S],
-    [Name],
-    [opt(seq([[S], [ExternalID]]))],
-    [opt(S)],
-    [opt(seq([[char('[')], [intSubset], [char(']')], [opt(S)]]))],
-    [char('>')],
+    lit('<!DOCTYPE'),
+    S,
+    Name,
+    opt(seq([S, ExternalID])),
+    opt(S),
+    opt(seq([char('['), intSubset, char(']'), opt(S)])),
+    char('>'),
   ])
   const Misc = alt([
-    [Comment],
-    [PI],
-    [S],
+    Comment,
+    PI,
+    S,
   ], 'MISC')
   const prolog = seq([
-    [opt(XMLDecl)],
+    opt(XMLDecl),
     // opt(XMLDecl()),
-    [zom(Misc)],
-    [opt(seq([[doctypedecl], [zom(Misc)]]))],
+    zom(Misc),
+    opt(seq([doctypedecl, zom(Misc)])),
   ], 'PROLOG')
 
 
@@ -723,35 +723,35 @@ export const fnlxml = (next) => {
   const QAC = emits('AttValue', zom(not('<&"')))
   const AAC = emits('AttValue', zom(not("<&'")))
   const AttValue = alt([
-    [seq([[char('"')], [seq([
-      [QAC],
-      [zom(seq([[Reference], [QAC]]))]
-    ])], [char('"')]])],
-    [seq([[char("'")], [seq([
-      [AAC],
-      [zom(seq([[Reference], [AAC]]))]
-    ])], [char("'")]])],
+    seq([char('"'), seq([
+      QAC,
+      zom(seq([Reference, QAC])),
+    ]), char('"')]),
+    seq([char("'"), seq([
+      AAC,
+      zom(seq([Reference, AAC]))
+    ]), char("'")]),
   ])
   const Attribute = emits('Attribute', seq([
-    [emits('AttName', Name)], 
-    [Eq], 
-    [AttValue],
+    emits('AttName', Name), 
+    Eq, 
+    AttValue,
   ]))
   const STag1 = emits('STag1', seq([
-    [char('<')],
-    [emits('STagName', Name)],
-    [zom(seq([[S], [Attribute]]))],
-    [opt(S)],
+    char('<'),
+    emits('STagName', Name),
+    zom(seq([S, Attribute])),
+    opt(S),
   ]))
 
   const STagC = emits('STagC', char('>'))
   const EETagC = emits('EETagC', lit('/>'))
 
   const ETag = emits('ETag', seq([
-    [lit('</')],
-    [emits('ETagName', Name)],
-    [opt(S)],
-    [char('>')],
+    lit('</'),
+    emits('ETagName', Name),
+    opt(S),
+    char('>'),
   ]))
 
   // todo: CharData ::= [^<&]* - ( [^<&]* ']]>' [^<&]* )
@@ -774,37 +774,37 @@ export const fnlxml = (next) => {
   // EETagC ::= '/>
   // const CData = (ii) => oom(Char)
   const element = ii => seq([
-    [STag1], 
-    [alt([
-      [EETagC],
-      [seq([[STagC], [content], [ETag]])],
-    ])],
+    STag1, 
+    alt([
+      EETagC,
+      seq([STagC, content, ETag]),
+    ]),
   ])(ii)
   const CData = emits('CData', charsUntilToken(']]>')) 
   const CDSect = seq([
-    [emits('openCData', lit('<![CDATA['))], 
-    [CData], 
-    [emits('closeCData', lit(']]>'))],
+    emits('openCData', lit('<![CDATA[')), 
+    CData, 
+    emits('closeCData', lit(']]>')),
   ])
   const content = emits('content', seq([
-    [opt(CharData)],
+    opt(CharData),
     // opt(CharData(ii)),
-    [zom(seq([
-      [alt([
-        [element],
-        [Reference],
-        [CDSect],
-        [PI],
-        [Comment],
-      ])],
-      [opt(CharData)],
-    ]))],
+    zom(seq([
+      alt([
+        element,
+        Reference,
+        CDSect,
+        PI,
+        Comment,
+      ]),
+      opt(CharData),
+    ])),
   ]))
   const document = seq([
     // opt(ranges2('\xef\xbb\xbf', '\xfe\xff', '\xff\xfe'), 0), 
-    [prolog], 
-    [element], 
-    [zom(Misc)],
+    prolog, 
+    element, 
+    zom(Misc),
   ], 'DOCUMNET')
 
   const Char = codePointRanges(0x09, 0x0A, 0x0D, [0x20, 0xD7FF], [0xE000, 0xFFFD], [0x10000, 0x10FFFF])
