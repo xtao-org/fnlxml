@@ -64,19 +64,15 @@ export const fnlxml = (next) => {
     const eat = (c, i) => {
       const rit = its[p]
       if (Array.isArray(rit)) {
-        // console.log("RIT", rit, ii)
-        const jj = i - 1 //ii === -1? i - 1: ii
+        const jj = i - 1
         its[p] = rit[0](jj)
       }
       const it = its[p]
-      if (it === undefined) console.log(it, p, its, its.length)
       const [sname, j] = it(c, i)
       if (sname === 'fail') return ['fail', j]
       if (sname === 'done') {
         p += 1
         if (p >= its.length) {
-          // console.log("DONE", p)
-          // p = 0
           return ['done', j]
         }
       }
@@ -91,7 +87,6 @@ export const fnlxml = (next) => {
       if (ii === -1) ii = i - 1
       const rit = its[p]
       if (Array.isArray(rit)) {
-        // console.log('ALTRIT')
         its[p] = rit[0](ii)
       }
       const it = its[p]
@@ -100,7 +95,6 @@ export const fnlxml = (next) => {
       if (sname === 'fail') {
         p += 1
         if (p >= its.length) {
-          // console.log('alt failing')
           return ['fail', j]
         }
         return ['pending', ii]
@@ -113,8 +107,9 @@ export const fnlxml = (next) => {
   const zom = (itc, ii = -1) => {
     let it = itc(ii)
     const eat = (c, i) => {
-      // todo: fix this -- because it doesn't return i, instead of </rss> for ETag we get ""
-      if (c === undefined) return ['done']
+      if (c === undefined) {
+        return ['done', i]
+      }
       if (ii === -1) ii = i - 1
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
@@ -161,9 +156,7 @@ export const fnlxml = (next) => {
     return eat
   }
 
-
-  // todo: use shouldReplaceEntities = true where applicable
-  const emits = (name, ii, fn, shouldReplaceEntities = false) => {
+  const emits = (name, ii, fn) => {
     let chunks = [getCurrentChunk()]
     const uccb = registerChunkCb((chunk) => {
       // could also emit event with partial result for each chunk rather than hold onto all chunks until complete CharData (or whatever) is parsed
@@ -171,18 +164,20 @@ export const fnlxml = (next) => {
     })
 
     const ondone = (jj) => {
-      // console.log(chunks)
       const lastChunk = chunks.at(-1)
       const lcl = lastChunk.length
       const combined = chunks.join('')
-      // note: slice(_, here) off by one compared to content()
-      const slice = combined.slice(ii + 1, -lcl + jj + 1)
+      const endi = -lcl + jj + 1
+      const slice = combined.slice(
+        ii + 1, 
+        // note: endi of the very last thing will be 0 which would give the wrong result here
+        // ?todo: optimize this check -- don't do it for every single emitter, just the last one (if possible)
+        endi === 0? undefined: endi,
+      )
 
       chunks = []
 
-      // console.log(`${name} DONE`)
-
-      next.emit(name, shouldReplaceEntities? replaceEntities(slice): slice)
+      next.emit(name, slice)
       return uccb()
     }
 
@@ -577,7 +572,7 @@ export const fnlxml = (next) => {
 
 
 
-  let status
+  let status, i = 0
 
   const start = document(0)
 
@@ -587,17 +582,20 @@ export const fnlxml = (next) => {
       for (const cb of ccbs) {
         cb(str)
       }
-      for (let i = 0; i < str.length; ++i) {
+      i = 0
+      for (; i < str.length; ++i) {
         const c = str[i]
         status = start(c, i)
         i = status[1]
-        if (i < 0) throw Error('buffer underflow!')
-        if (status[0] === 'fail') throw Error(`Unexpected status: ${status}`)
-        else if (status[0] === 'done' && i != str.length - 1) throw Error(`done too early ${i} ${str.slice(i)}`)
+        if (i < 0) throw Error(`can't backtrack to previous chunk(s)!`)
+        if (status[0] !== 'pending') {
+          if (status[0] === 'done' && i != str.length - 1) throw Error(`done too early ${i} ${str.slice(i)}`)
+          else if (status[0] === 'fail') throw Error(`Unexpected status: ${status}`)
+        }
       }
     },
     end() {
-      status = start()
+      status = start(undefined, i)
       const [sname, c] = status
       if (sname === 'done') return next.end()
       // todo: fix
