@@ -1,4 +1,4 @@
-import {fnlxml, resolveEntity2} from './fnlxml.js'
+import {fnlxml, resolveEntity2, toAsciiAzUppercase} from './fnlxml.js'
 
 // todo: find an xml test suite
 
@@ -117,3 +117,31 @@ stream2.chunk(`<?xml version="1.0"?>
 </channel>
 </rss>`)
 stream2.end()
+
+{
+  'test asciiazuppercase'
+  const str = ((`<?xml version="1.0"?>
+  <rss version="2.0">
+  <channel>
+  <title>Jevko updates</title>
+  <description>Latest official &quot;updates&quot; on the Jevko syntax</description>
+  <link>https://jevko.org</link>
+  <esc>[\`]</esc>
+  
+  <?app directions?>
+  <item t='u&amp;me'>
+    <title>Sun, 20 Nov 2022 01:30:00 +0000</title>
+    <!-- my comment here -->
+    <link>https://github.com/jevko/jevkoml</link>
+    <pubDate>Sun, 20 Nov 2022 01:30:00 +0000</pubDate>
+    <description><![CDATA[<p>Created <a href="https://github.com/jevko/community">https://github.com/jevko/community</a> -- a place to feature various Jevko-related things (including Jevko parsers in different languages) created by various authors. Contributions welcome!</p>
+    <p>#jevko #syntax #community #contributions</p>]]></description>
+  </item>
+  </channel>
+  </rss>`))
+  let ret2 = ''
+  for (const c of str) {
+    ret2 += toAsciiAzUppercase(c)
+  }
+  // console.log(ret2)
+}

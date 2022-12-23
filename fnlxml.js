@@ -34,6 +34,7 @@ const resolveEntity = (ent) => {
   throw Error(`Unknown entity: ${ent}`)
 }
 
+// note: entities in HTML are ASCII-case-insensitive
 export const resolveEntity2 = (ent) => {
   if (ent === '&lt;') return '<'
   if (ent === '&gt;') return '>'
@@ -324,7 +325,182 @@ export const fnlxml = (next) => {
   const pic09 = ['0'.codePointAt(0), '9'.codePointAt(0)]
   const PubidChar = () => codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
 
-  const intSubset = () => todo('intSubset')
+  // (markupdecl | DeclSep)*
+  const intSubset = () => zom(() => alt([
+    [markupdecl],
+    [DeclSep],
+  ]))
+
+  // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
+  const markupdecl = () => alt([
+    [elementdecl],
+    [AttlistDecl],
+    [EntityDecl],
+    [NotationDecl],
+    [PI],
+    [Comment],
+  ])
+  // '<!ELEMENT' S Name S contentspec S? '>'    [VC: Unique Element Type Declaration]
+  const elementdecl = () => seq([
+    lit('<!ELEMENT'),
+    [S],
+    [Name],
+    [S],
+    [contentspec],
+    opt(S()),
+    char('>'),
+  ])
+  // 'EMPTY' | 'ANY' | Mixed | children
+  const contentspec = () => alt([
+    lit('EMPTY'),
+    lit('ANY'),
+    [Mixed],
+    [children],
+  ])
+  // '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'
+  const Mixed = () => alt([
+    seq([
+      char('('),
+      opt(S()),
+      lit('#PCDATA'),
+      zom(() => seq([
+        opt(S()),
+        char('|'),
+        opt(S()),
+        [Name],
+      ])),
+      opt(S()),
+      lit(')*'),
+    ]),
+    seq([
+      char('('),
+      opt(S()),
+      lit('#PCDATA'),
+      opt(S()),
+      lit(')'),
+    ]),
+  ])
+  // (choice | seq) ('?' | '*' | '+')?
+  const children = () => seq([
+    alt([
+      [choice],
+      [Seq],
+    ]),
+    opt(alt([
+      char('?'),
+      char('*'),
+      char('+'),
+    ]))
+  ])
+  // '(' S? cp ( S? '|' S? cp )+ S? ')'    [VC: Proper Group/PE Nesting]
+  const choice = () => seq([
+    char('('),
+    opt(S()),
+    [cp],
+    oom(() => seq([
+      opt(S()),
+      char('|'),
+      opt(S()),
+      [cp],
+    ])),
+    opt(S()),
+    char(')'),
+  ])
+  // (Name | choice | seq) ('?' | '*' | '+')?
+  const cp = () => seq([
+    alt([
+      [Name],
+      [choice],
+      [Seq],
+    ]),
+    opt(alt([
+      char('?'),
+      char('*'),
+      char('+'),
+    ]))
+  ])
+  // '(' S? cp ( S? ',' S? cp )* S? ')'    [VC: Proper Group/PE Nesting]
+  const Seq = () => seq([
+    char('('),
+    opt(S()),
+    [cp],
+    zom(() => seq([
+      opt(S()),
+      char(','),
+      opt(S()),
+      [cp],
+    ])),
+    opt(S()),
+    char(')'),
+  ])
+  // '<!ATTLIST' S Name AttDef* S? '>'
+  const AttlistDecl = () => todo('AttlistDecl')
+  // GEDecl | PEDecl
+  const EntityDecl = () => alt([
+    [GEDecl],
+    [PEDecl],
+  ])
+  // '<!ENTITY' S Name S EntityDef S? '>'
+  const GEDecl = () => seq([
+    lit('<!ENTITY'),
+    [S],
+    [Name],
+    [S],
+    [EntityDef],
+    opt(S()),
+    char('>'),
+  ])
+  // EntityValue | (ExternalID NDataDecl?)
+  const EntityDef = () => alt([
+    [EntityValue],
+    seq([
+      [ExternalID],
+      opt(NDataDecl()),
+    ])
+  ])
+  // '"' ([^%&"] | PEReference | Reference)* '"' |  "'" ([^%&'] | PEReference | Reference)* "'"
+  const EntityValue = () => alt([
+    seq([
+      char('"'),
+      zom(() => alt([
+        not('%&"'),
+        [PEReference],
+        [Reference],
+      ])),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(() => alt([
+        not("%&'"),
+        [PEReference],
+        [Reference],
+      ])),
+      char("'"),
+    ]),
+  ])
+  const PEReference = () => todo('PEReference')
+  const NDataDecl = () => todo('NDataDecl')
+  // '<!ENTITY' S '%' S Name S PEDef S? '>'
+  const PEDecl = () => seq([
+    lit('<!ENTITY'),
+    [S],
+    char('%'),
+    [S],
+    [Name],
+    [S],
+    [PEDef],
+    opt(S()),
+    char('>'),
+  ])
+  const PEDef = () => todo('PEDef')
+  const NotationDecl = () => todo('NotationDecl')
+
+  // PEReference | S     [WFC: PE Between Declarations]
+  const DeclSep = () => alt([
+    [PEReference],
+    [S],
+  ])
 
   // original: 
   // element ::= EmptyElemTag | STag content ETag 
@@ -502,30 +678,48 @@ export const fnlxml = (next) => {
   const CharRef = (ii) => alt([
     seq([
       lit('&#'),
-      oom(range('0', '9')),
-      char(';')
+      oom(() => range('0', '9')),
+      char(';'),
     ]),
     seq([
       lit('&#x'),
-      oom(ranges(['0', '9'], ['a', 'f'], ['A', 'F'])),
-      char(';')
+      oom(() => ranges(['0', '9'], ['a', 'f'], ['A', 'F'])),
+      char(';'),
     ])
   ])
 
-  const NameStartChar = (ii) => alt([
-    char(':'),
-    range('A', 'Z'),
-    char('_'),
-    range('a', 'z'),
-    // todo: other ranges
-  ], ii)
+  // ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+  const NameStartChar = (ii) => ranges2(":",["A","Z"],"_",["a","z"],["\u00c0","\u00d6"],["\u00d8","\u00f6"],["\u00f8","\u02ff"],["\u0370","\u037d"],["\u037f","\u1fff"],["\u200c","\u200d"],["\u2070","\u218f"],["\u2c00","\u2fef"],["\u3001","\ud7ff"],["\uf900","\ufdcf"],["\ufdf0","\ufffd"],["\ud800\udc00","\udb7f\udfff"])
+  
+  //ranges2(":",["A","Z"],"_",["a","z"],["À","Ö"],["Ø","ö"],["ø","˿"],["Ͱ","ͽ"],["Ϳ","῿"],["‌","‍"],["⁰","↏"],["Ⰰ","⿯"],["、","퟿"],["豈","﷏"],["ﷰ","�"],["𐀀","󯿿"])
+  
+  // codePointRanges(
+  //   58,               [ 65, 90 ],
+  //   95,               [ 97, 122 ],
+  //   [ 192, 214 ],     [ 216, 246 ],
+  //   [ 248, 767 ],     [ 880, 893 ],
+  //   [ 895, 8191 ],    [ 8204, 8205 ],
+  //   [ 8304, 8591 ],   [ 11264, 12271 ],
+  //   [ 12289, 55295 ], [ 63744, 64975 ],
+  //   [ 65008, 65533 ], [ 65536, 983039 ]
+  // )
+  
+  // alt([
+  //   char(':'),
+  //   range('A', 'Z'),
+  //   char('_'),
+  //   range('a', 'z'),
+  //   // todo: other ranges
+  // ], ii)
+  // NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
   const NameChar = (ii) => alt([
     NameStartChar(),
     char('-'),
     char('.'),
     range('0', '9'),
-    // range('0', '9'),
-    // todo: other ranges
+    char('\xB7'),
+    range('\u0300', '\u036F'),
+    range('\u203F', '\u2040'),
   ], ii)
 
   const S = () => oom(() => alt([
@@ -548,6 +742,15 @@ export const fnlxml = (next) => {
   const ranges = (...ranges) => (c, i) => {
     for (const [a, b] of ranges) {
       if (c >= a && c <= b) return ['done', i]
+    }
+    return ['fail', i]
+  }
+  const ranges2 = (...ranges) => (c, i) => {
+    for (const p of ranges) {
+      if (Array.isArray(p)) {
+        const [a, b] = p
+        if (c >= a && c <= b) return ['done', i]
+      } else if (c === p) return ['done', i]
     }
     return ['fail', i]
   }
@@ -607,3 +810,10 @@ export const fnlxml = (next) => {
   }
 }
 
+// for HTML-compat mode -- should be used in lit() and literals should be written in uppercase
+export const toAsciiAzUppercase = (c) => {
+  if (c >= 'a' && c <= 'z') {
+    return String.fromCharCode(c.charCodeAt(0) - 0x20)
+  }
+  return c
+}
