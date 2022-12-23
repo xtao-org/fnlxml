@@ -58,23 +58,18 @@ export const fnlxml = (next) => {
     return currentChunk
   }
 
-  const todo = (str) => lit(str)
-  const document = (ii) => seq([
-    // opt(ranges2('\xef\xbb\xbf', '\xfe\xff', '\xff\xfe'), 0), 
-    [prolog], 
-    [element], 
-    [ii => zom(Misc, ii)],
-  ], ii)
-  const seq = (its, ii = null) => {
+  const seq = (its_, debugName) => (ii = null) => {
+    let its = [...its_]
     let p = 0
+    // console.log("SEQ INIT", p, ii, debugName)
     if (Array.isArray(its[p]) && ii !== null) {
-      // console.log("INIT", ii)
 
       // hm? ii or ii - 1
       const jj = ii
       its[p] = its[p][0](jj)
     }
     const eat = (c, i) => {
+      // console.log("SEQ", c, i, ii, debugName, p)
       const rit = its[p]
       if (Array.isArray(rit)) {
         // const jj = i - 1
@@ -86,7 +81,9 @@ export const fnlxml = (next) => {
       if (sname === 'fail') return ['fail', j]
       if (sname === 'done') {
         p += 1
+        // console.log("SEQ DONE 1", c, i, debugName, p)
         if (p >= its.length) {
+          // console.log("SEQ DONE", c, i, debugName, p)
           return ['done', j]
         }
       }
@@ -95,9 +92,12 @@ export const fnlxml = (next) => {
     return eat
   }
 
-  const alt = (its, ii = null) => {
+  const alt = (its_, debugName) => (ii = null) => {
+    let its = [...its_]
     let p = 0
+    // console.log("ALT INIT", ii, its, debugName)
     const eat = (c, i) => {
+      // console.log("ALT", c, i, debugName)
       // if (ii === null) ii = i - 1
       if (ii === null) ii = i
       const rit = its[p]
@@ -105,6 +105,7 @@ export const fnlxml = (next) => {
         its[p] = rit[0](ii)
       }
       const it = its[p]
+      // if (typeof it !== 'function') console.log(it, its, its.length, p)
       const s = it(c, i)
       const [sname, j] = s
       if (sname === 'fail') {
@@ -119,7 +120,7 @@ export const fnlxml = (next) => {
     return eat
   }
   
-  const zom = (itc, ii = null) => {
+  const zom = (itc) => (ii = null) => {
     let it = itc(ii)
     // console.log("ZOM INIT", ii)
     const eat = (c, i) => {
@@ -144,9 +145,12 @@ export const fnlxml = (next) => {
     return eat
   }
   // note: a variant of zom -- keep in sync
-  const oom = (itc, it = itc(), ii = null) => {
+  const oom = (itc, debugName) => (ii = null) => {
+    // console.log("OOOM INIT", ii, debugName)
     let cnt = 0
+    let it = itc(ii)
     const eat = (c, i) => {
+      // console.log("OOOM", ii, c, i, debugName)
       // if (ii === -1) ii = i - 1
       if (ii === null) ii = i
       const [sname, j] = it(c, i)
@@ -168,8 +172,9 @@ export const fnlxml = (next) => {
   }
   // note: a variant of zom -- keep in sync
   // atm important difference: zom and oom are called w X, opt is called w/ X()
-  const opt = (it, ii = null) => {
+  const opt = (itc) => (ii = null) => {
     // console.log("OPT INIT", ii)
+    let it = itc(ii)
     const eat = (c, i) => {
       // if (ii === null) ii = i - 1
       if (ii === null) ii = i
@@ -184,9 +189,8 @@ export const fnlxml = (next) => {
     return eat
   }
 
-
   const charsUntilToken = (token) => (ii = null) => {
-    let cend = lit(token)
+    let cend = lit(token)(ii)
     let cnt = 0
     const itc = Char
     let it = Char(ii)
@@ -196,10 +200,10 @@ export const fnlxml = (next) => {
 
       const es = cend(c, i)
       if (es[0] === 'fail') {
-        cend = lit(token)
+        cend = lit(token)(ii)
       } else if (es[0] === 'done') {
         // console.log('DONE', es)
-        console.log("*************\n\n\n", es[1] - token.length, '\n\n\n*********')
+        // console.log("*************\n\n\n", es[1] - token.length, '\n\n\n*********')
         return [es[0], es[1] - token.length]
       }
 
@@ -207,7 +211,7 @@ export const fnlxml = (next) => {
       if (sname === 'fail') {
         // if (cnt === 0) return ['fail', i]
         if (cnt === 0) return ['fail', j]
-        console.log('oom done')
+        // console.log('oom done')
         return ['done', ii]
       }
       if (sname === 'done') {
@@ -220,27 +224,31 @@ export const fnlxml = (next) => {
     }
   }
 
-  const not = (chars) => (c, i) => {
+  const not = (chars) => ii => (c, i) => {
     if (chars.includes(c)) return ['fail', i]
     // return ['done', i]
     return ['done', i + 1]
   }
 
-  const char = (h) => (c, i) => {
-    if (h === c) return ['done', i + 1]
-    return ['fail', i]
+  const char = (h) => (ii) => {
+    // console.log("CHAR INIT", h, ii)
+    return (c, i) => {
+      // console.log("CHAR", h, c, ii)
+      if (h === c) return ['done', i + 1]
+      return ['fail', i]
+    }
   }
-  const range = (a, b) => (c, i) => {
+  const range = (a, b) => ii => (c, i) => {
     if (c >= a && c <= b) return ['done', i + 1]
     return ['fail', i]
   }
-  const ranges = (...ranges) => (c, i) => {
+  const ranges = (...ranges) => ii => (c, i) => {
     for (const [a, b] of ranges) {
       if (c >= a && c <= b) return ['done', i + 1]
     }
     return ['fail', i]
   }
-  const ranges2 = (...ranges) => (c, i) => {
+  const ranges2 = (...ranges) => ii => (c, i) => {
     for (const p of ranges) {
       if (Array.isArray(p)) {
         const [a, b] = p
@@ -249,7 +257,7 @@ export const fnlxml = (next) => {
     }
     return ['fail', i]
   }
-  const codePointRanges = (...ranges) => (c, i) => {
+  const codePointRanges = (...ranges) => ii => (c, i) => {
     const ccp = c.codePointAt(0)
     for (const p of ranges) {
       if (Array.isArray(p)) {
@@ -259,18 +267,22 @@ export const fnlxml = (next) => {
     }
     return ['fail', i]
   }
-  const lit = (str, index = 0) => (c, i) => {
-    // console.log("LIT", i, c, str, index)
-    if (str[index] === c) {
-      ++index
-      if (index >= str.length) return ['done', i + 1]
-      // console.log(str, index, i)
-      return ['pending', i + 1]
+  const lit = (str) => ii => {
+    let index = 0
+    return (c, i) => {
+      // console.log("LIT", i, c, str, index)
+      if (str[index] === c) {
+        ++index
+        if (index >= str.length) return ['done', i + 1]
+        // console.log(str, index, i)
+        return ['pending', i + 1]
+      }
+      return ['fail', i]
     }
-    return ['fail', i]
   }
 
-  const emits = (name, ii, fn) => {
+  const emits = (name, fn) => ii => {
+    // console.log('EMITS INIT', name, ii)
     let chunks = [getCurrentChunk()]
     const uccb = registerChunkCb((chunk) => {
       // could also emit event with partial result for each chunk rather than hold onto all chunks until complete CharData (or whatever) is parsed
@@ -296,8 +308,10 @@ export const fnlxml = (next) => {
       return uccb()
     }
 
+    let it = fn(ii)
+
     return (c, i) => {
-      const ret = fn(c, i)
+      const ret = it(c, i)
       if (ret[0] === 'done') {
         const r = ondone(ret[1])
         if (r === false) throw Error('oops')
@@ -306,508 +320,75 @@ export const fnlxml = (next) => {
     }
   }
 
-  const prolog = (ii) => {
-    // console.log("INIT PROLOG", ii)
-    return seq([
-      [ii => opt(XMLDecl(ii), ii)],
-      // opt(XMLDecl()),
-      [ii => zom(Misc, ii)],
-      [ii => opt(seq([[doctypedecl], [ii => zom(Misc, ii)]], ii), ii)],
-    ], ii)
-  }
+  ///////////
+  // RULES //
+  ///////////
 
-  const XMLDecl = (ii) => {
-    // console.log('INIT XMLDECL', ii)
-    return seq([
-      lit('<?xml'),
-      [VersionInfo],
-      [ii => opt(EncodingDecl(ii), ii)],
-      [ii => opt(SDDecl(ii), ii)],
-      [ii => opt(S(ii), ii)],
-      lit('?>'),
-    ], ii)
-  }
+  const todo = lit
 
-  //  S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
-  const VersionInfo = (ii) => {
-    // console.log("INIT VERINFO", ii)
-    return seq([
-      S(),
-      lit('version'),
-      Eq(),
-      alt([
-        seq([char("'"), [VersionNum], char("'")]),
-        seq([char('"'), [VersionNum], char('"')]),
-      ]),
-    ])
-  }
-
+  const S = oom(alt([
+    [char('\u0020')], 
+    [char('\u0009')], 
+    [char('\u000D')], 
+    [char('\u000A')],
+  ], 'SSSSSSSSSSSs'), 'SSSSSS')
+  const Eq = seq([[opt(S)], [char('=')], [opt(S)]])
   // '1.' [0-9]+
-  const VersionNum = () => seq([
-    lit('1.'),
-    oom(() => range('0', '9')),
+  const VersionNum = seq([
+    [lit('1.')],
+    [oom(range('0', '9'))],
   ])
-
-  // S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
-  const EncodingDecl = () => seq([
+  //  S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
+  const VersionInfo = seq([
     [S],
-    lit('encoding'),
+    [lit('version')],
     [Eq],
-    alt([
-      seq([char("'"), [EncName], char("'")]),
-      seq([char('"'), [EncName], char('"')]),
-    ])
+    [alt([
+      [seq([[char("'")], [VersionNum], [char("'")]])],
+      [seq([[char('"')], [VersionNum], [char('"')]])],
+    ])],
   ])
   // [A-Za-z] ([A-Za-z0-9._] | '-')*    /* Encoding name contains only Latin characters */
-  const EncName = () => seq([
-    ranges(['A', 'Z'], ['a', 'z']),
-    zom(() => alt([
-      ranges(['A', 'Z'], ['a', 'z'], ['0', '9']),
-      char('.'),
-      char('_'),
-      char('-'),
-    ]))
-  ])
-  // S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"'))     [VC: Standalone Document Declaration]
-  const SDDecl = () => seq([
+  const EncName = seq([
+    [ranges(['A', 'Z'], ['a', 'z'])],
+    [zom(alt([
+      [ranges(['A', 'Z'], ['a', 'z'], ['0', '9'])],
+      [char('.')],
+      [char('_')],
+      [char('-')],
+    ], 'ENNENENNENEN'))]
+  ], 'EncName')
+  // S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
+  const EncodingDecl = seq([
     [S],
-    lit('standalone'),
+    [lit('encoding')],
     [Eq],
-    alt([
-      seq([char("'"), alt([lit('yes'), lit('no')]), char("'")]),
-      seq([char('"'), alt([lit('yes'), lit('no')]), char('"')]),
-    ])
+    [alt([
+      [seq([[char("'")], [EncName], [char("'")]])],
+      [seq([[char('"')], [EncName], [char('"')]])],
+    ])]
   ])
 
-  const Misc = (ii) => {
-    // console.log("INIT MISC", ii)
-    return alt([
-      [Comment],
-      [PI],
-      [S],
-    ], ii)
-    // ])
-  }
-
-  const doctypedecl = (ii) => {
-    // console.log('*****doctypedecl', ii)
-    return seq([
-      lit('<!DOCTYPE'),
-      [S],
-      [Name],
-      [ii => opt(seq([S(), [ExternalID]]), ii)],
-      [ii => opt(S(), ii)],
-      [ii => opt(seq([char('['), intSubset(), char(']'), opt(S())]), ii)],
-      char('>'),
-    ], ii)
-  }
-
-  // ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral
-  const ExternalID = () => alt([
-    seq([
-      lit('SYSTEM'),
-      [S],
-      [SystemLiteral],
-    ]),
-    seq([
-      lit('PUBLIC'),
-      [S],
-      [PubidLiteral],
-      [S],
-      [SystemLiteral]
-    ])
-  ])
-
-  // SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")
-  const SystemLiteral = (ii) => {
-    console.log("SYSLIT", ii)
-    return alt([
-      seq([
-        char('"'),
-        zom(() => not('"')),
-        char('"'),
-      ]),
-      seq([
-        char("'"),
-        zom(() => not("'")),
-        char("'"),
-      ]),
-    ])
-  }
-  // '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
-  const PubidLiteral = () => alt([
-    seq([
-      char('"'),
-      zom(PubidChar),
-      char('"'),
-    ]),
-    seq([
-      char("'"),
-      zom(todo('PubidChar - "\'"')),
-      char("'"),
-    ]),
-  ])
-  // #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
-  const piclr = []
-  const piclrstr = `-'()+,./:=?;!*#@$_%`
-  for (let i = 0; i < piclrstr.length; ++i) {
-    piclr.push(piclrstr.codePointAt(i))
-  }
-  const picaz = ['a'.codePointAt(0), 'z'.codePointAt(0)]
-  const picAZ = ['A'.codePointAt(0), 'Z'.codePointAt(0)]
-  const pic09 = ['0'.codePointAt(0), '9'.codePointAt(0)]
-  const PubidChar = () => codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
-
-  // (markupdecl | DeclSep)*
-  const intSubset = () => zom(() => alt([
-    [markupdecl],
-    [DeclSep],
-  ]))
-
-  // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
-  const markupdecl = () => alt([
-    [elementdecl],
-    [AttlistDecl],
-    [EntityDecl],
-    [NotationDecl],
-    [PI],
-    [Comment],
-    [CATCHALL],
-  ])
-  // note: hack
-  // ?todo: rem
-  const CATCHALL = () => seq([
-    lit('<!'),
-    zom(() => not('>')),
-    char('>'),
-  ])
-  // '<!ELEMENT' S Name S contentspec S? '>'    [VC: Unique Element Type Declaration]
-  const elementdecl = () => seq([
-    lit('<!ELEMENT'),
+  // S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"'))     [VC: Standalone Document Declaration]
+  const SDDecl = seq([
     [S],
-    [Name],
-    [S],
-    [contentspec],
-    opt(S()),
-    char('>'),
+    [lit('standalone')],
+    [Eq],
+    [alt([
+      [seq([[char("'")], [alt([[lit('yes')], [lit('no')]])], [char("'")]])],
+      [seq([[char('"')], [alt([[lit('yes')], [lit('no')]])], [char('"')]])],
+    ])]
   ])
-  // 'EMPTY' | 'ANY' | Mixed | children
-  const contentspec = () => alt([
-    lit('EMPTY'),
-    lit('ANY'),
-    [Mixed],
-    [children],
-  ])
-  // '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'
-  const Mixed = () => alt([
-    seq([
-      char('('),
-      opt(S()),
-      lit('#PCDATA'),
-      zom(() => seq([
-        opt(S()),
-        char('|'),
-        opt(S()),
-        [Name],
-      ])),
-      opt(S()),
-      lit(')*'),
-    ]),
-    seq([
-      char('('),
-      opt(S()),
-      lit('#PCDATA'),
-      opt(S()),
-      char(')'),
-    ]),
-  ])
-  // (choice | seq) ('?' | '*' | '+')?
-  const children = () => seq([
-    alt([
-      [choice],
-      [Seq],
-    ]),
-    opt(alt([
-      char('?'),
-      char('*'),
-      char('+'),
-    ]))
-  ])
-  // '(' S? cp ( S? '|' S? cp )+ S? ')'    [VC: Proper Group/PE Nesting]
-  const choice = () => seq([
-    char('('),
-    opt(S()),
-    [cp],
-    oom(() => seq([
-      opt(S()),
-      char('|'),
-      opt(S()),
-      [cp],
-    ])),
-    opt(S()),
-    char(')'),
-  ])
-  // (Name | choice | seq) ('?' | '*' | '+')?
-  const cp = () => seq([
-    alt([
-      [Name],
-      [choice],
-      [Seq],
-    ]),
-    opt(alt([
-      char('?'),
-      char('*'),
-      char('+'),
-    ]))
-  ])
-  // '(' S? cp ( S? ',' S? cp )* S? ')'    [VC: Proper Group/PE Nesting]
-  const Seq = () => seq([
-    char('('),
-    opt(S()),
-    [cp],
-    zom(() => seq([
-      opt(S()),
-      char(','),
-      opt(S()),
-      [cp],
-    ])),
-    opt(S()),
-    char(')'),
-  ])
-  // '<!ATTLIST' S Name AttDef* S? '>'
-  const AttlistDecl = () => todo('AttlistDecl')
-  // GEDecl | PEDecl
-  const EntityDecl = () => alt([
-    [GEDecl],
-    [PEDecl],
-  ])
-  // '<!ENTITY' S Name S EntityDef S? '>'
-  const GEDecl = () => seq([
-    lit('<!ENTITY'),
-    [S],
-    [Name],
-    [S],
-    [EntityDef],
-    opt(S()),
-    char('>'),
-  ])
-  // EntityValue | (ExternalID NDataDecl?)
-  const EntityDef = () => alt([
-    [EntityValue],
-    seq([
-      [ExternalID],
-      opt(NDataDecl()),
-    ])
-  ])
-  // '"' ([^%&"] | PEReference | Reference)* '"' |  "'" ([^%&'] | PEReference | Reference)* "'"
-  const EntityValue = () => alt([
-    seq([
-      char('"'),
-      zom(() => alt([
-        not('%&"'),
-        [PEReference],
-        [Reference],
-      ])),
-      char('"'),
-    ]),
-    seq([
-      char("'"),
-      zom(() => alt([
-        not("%&'"),
-        [PEReference],
-        [Reference],
-      ])),
-      char("'"),
-    ]),
-  ])
-  // '%' Name ';'   
-  const PEReference = () => seq([
-    char('%'),
-    [Name],
-    char(';'),
-  ])
-  const NDataDecl = () => todo('NDataDecl')
-  // '<!ENTITY' S '%' S Name S PEDef S? '>'
-  const PEDecl = () => seq([
-    lit('<!ENTITY'),
-    [S],
-    char('%'),
-    [S],
-    [Name],
-    [S],
-    [PEDef],
-    opt(S()),
-    char('>'),
-  ])
-  // EntityValue | ExternalID
-  const PEDef = () => alt([
-    [EntityValue],
-    [ExternalID],
-  ])
-  const NotationDecl = () => todo('NotationDecl')
-
-  // PEReference | S     [WFC: PE Between Declarations]
-  const DeclSep = () => alt([
-    [PEReference],
-    [S],
-  ])
-
-  // original: 
-  // element ::= EmptyElemTag | STag content ETag 
-  //  EmptyElemTag ::= '<' Name (S Attribute)* S? '/>'    [WFC: Unique Att Spec]
-  // STag ::= '<' Name (S Attribute)* S? '>'    [WFC: Unique Att Spec]
-  // ETag ::= '</' Name S? '>'
-
-  // adjusted:
-  // element ::= STag1 (EETagc | STagC content ETag)
-  // the common part between STag and ETag:
-  // STag1 ::= '<' Name (S Attribute)? (S Attribute)* S?
-  // STagC ::= '>'
-  // EETagC ::= '/>
-  const element = (ii) => {
-    console.log("ELEMENT", ii)
-    return seq([
-      [STag1], 
-      alt([
-        [EETagC],
-        seq([[STagC], [content], [ETag]])
-      ]),
-    ], ii)
-  }
-
-  const STag1 = (ii) => emits('STag1', ii, seq([
-    char('<'),
-    [ii => emits('STagName', ii, Name(ii))],
-    zom(() => seq([S(), [Attribute]])),
-    opt(S()),
-  ]))
-
-  const STagC = (ii) => emits('STagC', ii, char('>'))
-  const EETagC = (ii) => emits('EETagC', ii, lit('/>'))
-
-  const ETag = (ii) => emits('ETag', ii, seq([
-    lit('</'),
-    [ii => emits('ETagName', ii, Name(ii))],
-    opt(S()),
-    char('>'),
-  ]))
-
-  const content = (ii) => emits('content', ii, seq([
-    [ii => opt(CharData(ii), ii)],
-    // opt(CharData(ii)),
-    [ii => zom(() => seq([
-      alt([
-        [element],
-        [Reference],
-        [CDSect],
-        [PI],
-        [Comment],
-      ]),
-      [ii => opt(CharData(ii))],
-    ]), ii)],
-  ]))
-  
-
-  const Name = (ii) => {
-    // console.log('NAME', ii)
-    return seq([[NameStartChar], [ii => zom(NameChar, ii)]])
-  }
-  const Attribute = (ii) => emits('Attribute', ii, seq([
-    [ii => emits('AttName', ii, Name(ii))], 
-    [Eq], 
-    [AttValue],
-  ]))
-  const Eq = (ii) => seq([opt(S()), char('='), opt(S())])
-  // const AttValue = (ii) => alt([
-  //   seq([char('"'), [ii => emits(
-  //     'AttValue', ii, zom(() => alt([
-  //       not('<&"'),
-  //       [Reference],
-  //     ]), ii), true
-  //   )], char('"')]),
-  //   seq([char("'"), [ii => emits(
-  //     'AttValue', ii, zom(() => alt([
-  //       not("<&'"),
-  //       [Reference],
-  //     ]), ii), true
-  //   )], char("'")]),
-  // ], ii)
-
-  const AttValue = (ii) => alt([
-    seq([char('"'), seq([
-      [QAC],
-      zom(() => seq([[Reference], [QAC]]))
-    ]), char('"')]),
-    seq([char("'"), seq([
-      [AAC],
-      zom(() => seq([[Reference], [AAC]]))
-    ]), char("'")]),
-  ], ii)
-
-  const QAC = (ii) => emits('AttValue', ii, zom(() => not('<&"'), ii))
-  const AAC = (ii) => emits('AttValue', ii, zom(() => not("<&'"), ii))
-
-  // todo: CharData ::= [^<&]* - ( [^<&]* ']]>' [^<&]* )
-  // https://www.w3.org/TR/2008/REC-xml-20081126/#syntax
-  // could parametrize charsUntilToken(end, itc = Char)
-  // pass () => not('<&') as itc -- that would do it
-  // this rule is for compatibility w/ SGML
-  const CharData = (ii) => emits('CharData', ii, zom(() => not('<&'), ii))
-
-  const CDSect = (ii) => seq([
-    [ii => emits('openCData', ii, lit('<![CDATA['))], 
-    [CData], 
-    [ii => emits('closeCData', ii, lit(']]>'))],
-  ])
-  // const CData = (ii) => oom(Char)
-  const CData = (ii) => emits('CData', ii, charsUntilToken(']]>')(ii)) 
-  const Char = (ii) => codePointRanges(0x09, 0x0A, 0x0D, [0x20, 0xD7FF], [0xE000, 0xFFFD], [0x10000, 0x10FFFF])
-  const PI = () => seq([
-    lit('<?'),
-    [PITarget],
-    [ii => opt(seq([
-      [S],
-      // todo: same as comment & cdata, except should probly backtrack to before ?> after it's found
-      // or is that overcomplicating it?
-      // this PITarget and S create a problem here
-      [charsUntilToken('?>')],
-    ]), ii)],
-    lit('?>'),
-  ])
-
-  // todo: PITarget ::= Name - ( ( 'X' | 'x' ) ( 'M' | 'm' ) ( 'L' | 'l' ) )
-  const PITarget = Name
-  const Comment = (ii) => emits('Comment', ii, seq([
-    lit('<!--'),
-    [charsUntilToken('-->')],
-    lit('-->'),
-  ]))
-
-  const Reference = (ii) => emits('Reference', ii, alt([
-    [EntityRef],
-    [CharRef],
-  ], ii))
-
-  const EntityRef = (ii) => seq([
-    char('&'),
-    [Name],
-    char(';'),
-  ])
-  const CharRef = (ii) => alt([
-    seq([
-      lit('&#'),
-      oom(() => range('0', '9')),
-      char(';'),
-    ]),
-    seq([
-      lit('&#x'),
-      oom(() => ranges(['0', '9'], ['a', 'f'], ['A', 'F'])),
-      char(';'),
-    ])
-  ])
-
+  const XMLDecl = seq([
+    [lit('<?xml')],
+    [VersionInfo],
+    [opt(EncodingDecl)],
+    [opt(SDDecl)],
+    [opt(S)],
+    [lit('?>')],
+  ], 'XMLDEcl')
   // ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
-  const NameStartChar = (ii) => ranges2(":",["A","Z"],"_",["a","z"],["\u00c0","\u00d6"],["\u00d8","\u00f6"],["\u00f8","\u02ff"],["\u0370","\u037d"],["\u037f","\u1fff"],["\u200c","\u200d"],["\u2070","\u218f"],["\u2c00","\u2fef"],["\u3001","\ud7ff"],["\uf900","\ufdcf"],["\ufdf0","\ufffd"],["\ud800\udc00","\udb7f\udfff"])
+  const NameStartChar = ranges2(":",["A","Z"],"_",["a","z"],["\u00c0","\u00d6"],["\u00d8","\u00f6"],["\u00f8","\u02ff"],["\u0370","\u037d"],["\u037f","\u1fff"],["\u200c","\u200d"],["\u2070","\u218f"],["\u2c00","\u2fef"],["\u3001","\ud7ff"],["\uf900","\ufdcf"],["\ufdf0","\ufffd"],["\ud800\udc00","\udb7f\udfff"])
   
   //ranges2(":",["A","Z"],"_",["a","z"],["À","Ö"],["Ø","ö"],["ø","˿"],["Ͱ","ͽ"],["Ϳ","῿"],["‌","‍"],["⁰","↏"],["Ⰰ","⿯"],["、","퟿"],["豈","﷏"],["ﷰ","�"],["𐀀","󯿿"])
   
@@ -830,22 +411,428 @@ export const fnlxml = (next) => {
   //   // todo: other ranges
   // ], ii)
   // NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
-  const NameChar = (ii) => alt([
-    NameStartChar(),
-    char('-'),
-    char('.'),
-    range('0', '9'),
-    char('\xB7'),
-    range('\u0300', '\u036F'),
-    range('\u203F', '\u2040'),
-  ], ii)
+  const NameChar = alt([
+    [NameStartChar],
+    [char('-')],
+    [char('.')],
+    [range('0', '9')],
+    [char('\xB7')],
+    [range('\u0300', '\u036F')],
+    [range('\u203F', '\u2040')],
+  ])
+  const Name = seq([[NameStartChar], [zom(NameChar)]], 'Name')
+  // SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")
+  const SystemLiteral = alt([
+    [seq([
+      [char('"')],
+      [zom(not('"'))],
+      [char('"')],
+    ])],
+    [seq([
+      [char("'")],
+      [zom(not("'"))],
+      [char("'")],
+    ])],
+  ])
+  // #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
+  const piclr = []
+  const piclrstr = `-'()+,./:=?;!*#@$_%`
+  for (let i = 0; i < piclrstr.length; ++i) {
+    piclr.push(piclrstr.codePointAt(i))
+  }
+  const picaz = ['a'.codePointAt(0), 'z'.codePointAt(0)]
+  const picAZ = ['A'.codePointAt(0), 'Z'.codePointAt(0)]
+  const pic09 = ['0'.codePointAt(0), '9'.codePointAt(0)]
+  const PubidChar = codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
+  // '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
+  const PubidLiteral = alt([
+    [seq([
+      [char('"')],
+      [zom(PubidChar)],
+      [char('"')],
+    ])],
+    [seq([
+      [char("'")],
+      [zom(todo('PubidChar - "\'"'))],
+      [char("'")],
+    ])],
+  ])
+  // ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral
+  const ExternalID = alt([
+    [seq([
+      [lit('SYSTEM')],
+      [S],
+      [SystemLiteral],
+    ])],
+    [seq([
+      [lit('PUBLIC')],
+      [S],
+      [PubidLiteral],
+      [S],
+      [SystemLiteral]
+    ])]
+  ])
+  // '(' S? '#PCDATA' (S? '|' S? Name)* S? ')*' | '(' S? '#PCDATA' S? ')'
+  const Mixed = alt([
+    [seq([
+      [char('(')],
+      [opt(S)],
+      [lit('#PCDATA')],
+      [zom(seq([
+        [opt(S)],
+        [char('|')],
+        [opt(S)],
+        [Name],
+      ]))],
+      [opt(S)],
+      [lit(')*')],
+    ])],
+    [seq([
+      [char('(')],
+      [opt(S)],
+      [lit('#PCDATA')],
+      [opt(S)],
+      [char(')')],
+    ])],
+  ])// note: hack
+  // ?todo: rem
+  const CATCHALL = seq([
+    [lit('<!')],
+    [zom(not('>'))],
+    [char('>')],
+  ])
+  // (Name | choice | seq) ('?' | '*' | '+')?
+  const cp = ii => seq([
+    [alt([
+      [Name],
+      [choice],
+      [Seq],
+    ])],
+    [opt(alt([
+      [char('?')],
+      [char('*')],
+      [char('+')],
+    ]))]
+  ])(ii)
+  // '(' S? cp ( S? '|' S? cp )+ S? ')'    [VC: Proper Group/PE Nesting]
+  const choice = seq([
+    [char('(')],
+    [opt(S)],
+    [cp],
+    [oom(seq([
+      [opt(S)],
+      [char('|')],
+      [opt(S)],
+      [cp],
+    ]))],
+    [opt(S)],
+    [char(')')],
+  ])
+  // '(' S? cp ( S? ',' S? cp )* S? ')'    [VC: Proper Group/PE Nesting]
+  const Seq = seq([
+    [char('(')],
+    [opt(S)],
+    [cp],
+    [zom(seq([
+      [opt(S)],
+      [char(',')],
+      [opt(S)],
+      [cp],
+    ]))],
+    [opt(S)],
+    [char(')')],
+  ])
+  // (choice | seq) ('?' | '*' | '+')?
+  const children = seq([
+    [alt([
+      [choice],
+      [Seq],
+    ])],
+    [opt(alt([
+      [char('?')],
+      [char('*')],
+      [char('+')],
+    ]))]
+  ])
+  // 'EMPTY' | 'ANY' | Mixed | children
+  const contentspec = alt([
+    [lit('EMPTY')],
+    [lit('ANY')],
+    [Mixed],
+    [children],
+  ])
+  // '<!ELEMENT' S Name S contentspec S? '>'    [VC: Unique Element Type Declaration]
+  const elementdecl = seq([
+    [lit('<!ELEMENT')],
+    [S],
+    [Name],
+    [S],
+    [contentspec],
+    [opt(S)],
+    [char('>')],
+  ])
+  // '<!ATTLIST' S Name AttDef* S? '>'
+  const AttlistDecl = todo('AttlistDecl')
 
-  const S = () => oom(() => alt([
-    char('\u0020'), 
-    char('\u0009'), 
-    char('\u000D'), 
-    char('\u000A'),
+  // '%' Name ';'   
+  const PEReference = seq([
+    [char('%')],
+    [Name],
+    [char(';')],
+  ])
+  const EntityRef = seq([
+    [char('&')],
+    [Name],
+    [char(';')],
+  ])
+  const CharRef = alt([
+    [seq([
+      [lit('&#')],
+      [oom(range('0', '9'))],
+      [char(';')],
+    ])],
+    [seq([
+      [lit('&#x')],
+      [oom(ranges(['0', '9'], ['a', 'f'], ['A', 'F']))],
+      [char(';')],
+    ])]
+  ])
+  const Reference = emits('Reference', alt([
+    [EntityRef],
+    [CharRef],
   ]))
+  // '"' ([^%&"] | PEReference | Reference)* '"' |  "'" ([^%&'] | PEReference | Reference)* "'"
+  const EntityValue = alt([
+    [seq([
+      [char('"')],
+      [zom(alt([
+        [not('%&"')],
+        [PEReference],
+        [Reference],
+      ], '(((((((DEBUG))))))))evn'))],
+      [char('"')],
+    ])],
+    [seq([
+      [char("'")],
+      [zom(alt([
+        [not("%&'")],
+        [PEReference],
+        [Reference],
+      ], '(((((((((((((((((((('))],
+      [char("'")],
+    ])],
+  ])
+  const NDataDecl = todo('NDataDecl')
+  // EntityValue | (ExternalID NDataDecl?)
+  const EntityDef = alt([
+    [EntityValue],
+    [seq([
+      [ExternalID],
+      [opt(NDataDecl)],
+    ])]
+  ])
+  // '<!ENTITY' S Name S EntityDef S? '>'
+  const GEDecl = seq([
+    [lit('<!ENTITY')],
+    [S],
+    [Name],
+    [S],
+    [EntityDef],
+    [opt(S)],
+    [char('>')],
+  ])
+  // EntityValue | ExternalID
+  const PEDef = alt([
+    [EntityValue],
+    [ExternalID],
+  ])
+  // '<!ENTITY' S '%' S Name S PEDef S? '>'
+  const PEDecl = seq([
+    [lit('<!ENTITY')],
+    [S],
+    [char('%')],
+    [S],
+    [Name],
+    [S],
+    [PEDef],
+    [opt(S)],
+    [char('>')],
+  ])
+  // GEDecl | PEDecl
+  const EntityDecl = alt([
+    [GEDecl],
+    [PEDecl],
+  ])
+  const NotationDecl = todo('NotationDecl')
+  // todo: PITarget ::= Name - ( ( 'X' | 'x' ) ( 'M' | 'm' ) ( 'L' | 'l' ) )
+  const PITarget = Name
+  const PI = seq([
+    [lit('<?')],
+    [PITarget],
+    [opt(seq([
+      [S],
+      // todo: same as comment & cdata, except should probly backtrack to before ?> after it's found
+      // or is that overcomplicating it?
+      // this PITarget and S create a problem here
+      [charsUntilToken('?>')],
+    ]))],
+    [lit('?>')],
+  ], 'PI')
+  const Comment = emits('Comment', seq([
+    [lit('<!--')],
+    [charsUntilToken('-->')],
+    [lit('-->')],
+  ], 'COMMENT'))
+  // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
+  const markupdecl = alt([
+    [elementdecl],
+    [AttlistDecl],
+    [EntityDecl],
+    [NotationDecl],
+    [PI],
+    [Comment],
+    [CATCHALL],
+  ])
+  // PEReference | S     [WFC: PE Between Declarations]
+  const DeclSep = alt([
+    [PEReference],
+    [S],
+  ])
+  // (markupdecl | DeclSep)*
+  const intSubset = zom(alt([
+    [markupdecl],
+    [DeclSep],
+  ], 'IIIIIIIIIIIIII'))
+  const doctypedecl = seq([
+    [lit('<!DOCTYPE')],
+    [S],
+    [Name],
+    [opt(seq([[S], [ExternalID]]))],
+    [opt(S)],
+    [opt(seq([[char('[')], [intSubset], [char(']')], [opt(S)]]))],
+    [char('>')],
+  ])
+  const Misc = alt([
+    [Comment],
+    [PI],
+    [S],
+  ], 'MISC')
+  const prolog = seq([
+    [opt(XMLDecl)],
+    // opt(XMLDecl()),
+    [zom(Misc)],
+    [opt(seq([[doctypedecl], [zom(Misc)]]))],
+  ], 'PROLOG')
+
+
+  // const AttValue = (ii) => alt([
+  //   seq([char('"'), [ii => emits(
+  //     'AttValue', ii, zom(() => alt([
+  //       not('<&"'),
+  //       [Reference],
+  //     ]), ii), true
+  //   )], char('"')]),
+  //   seq([char("'"), [ii => emits(
+  //     'AttValue', ii, zom(() => alt([
+  //       not("<&'"),
+  //       [Reference],
+  //     ]), ii), true
+  //   )], char("'")]),
+  // ], ii)
+
+
+  const QAC = emits('AttValue', zom(not('<&"')))
+  const AAC = emits('AttValue', zom(not("<&'")))
+  const AttValue = alt([
+    [seq([[char('"')], [seq([
+      [QAC],
+      [zom(seq([[Reference], [QAC]]))]
+    ])], [char('"')]])],
+    [seq([[char("'")], [seq([
+      [AAC],
+      [zom(seq([[Reference], [AAC]]))]
+    ])], [char("'")]])],
+  ])
+  const Attribute = emits('Attribute', seq([
+    [emits('AttName', Name)], 
+    [Eq], 
+    [AttValue],
+  ]))
+  const STag1 = emits('STag1', seq([
+    [char('<')],
+    [emits('STagName', Name)],
+    [zom(seq([[S], [Attribute]]))],
+    [opt(S)],
+  ]))
+
+  const STagC = emits('STagC', char('>'))
+  const EETagC = emits('EETagC', lit('/>'))
+
+  const ETag = emits('ETag', seq([
+    [lit('</')],
+    [emits('ETagName', Name)],
+    [opt(S)],
+    [char('>')],
+  ]))
+
+  // todo: CharData ::= [^<&]* - ( [^<&]* ']]>' [^<&]* )
+  // https://www.w3.org/TR/2008/REC-xml-20081126/#syntax
+  // could parametrize charsUntilToken(end, itc = Char)
+  // pass () => not('<&') as itc -- that would do it
+  // this rule is for compatibility w/ SGML
+  const CharData = emits('CharData', zom(not('<&')))
+  // original: 
+  // element ::= EmptyElemTag | STag content ETag 
+  //  EmptyElemTag ::= '<' Name (S Attribute)* S? '/>'    [WFC: Unique Att Spec]
+  // STag ::= '<' Name (S Attribute)* S? '>'    [WFC: Unique Att Spec]
+  // ETag ::= '</' Name S? '>'
+
+  // adjusted:
+  // element ::= STag1 (EETagc | STagC content ETag)
+  // the common part between STag and ETag:
+  // STag1 ::= '<' Name (S Attribute)? (S Attribute)* S?
+  // STagC ::= '>'
+  // EETagC ::= '/>
+  // const CData = (ii) => oom(Char)
+  const element = ii => seq([
+    [STag1], 
+    [alt([
+      [EETagC],
+      [seq([[STagC], [content], [ETag]])],
+    ])],
+  ])(ii)
+  const CData = emits('CData', charsUntilToken(']]>')) 
+  const CDSect = seq([
+    [emits('openCData', lit('<![CDATA['))], 
+    [CData], 
+    [emits('closeCData', lit(']]>'))],
+  ])
+  const content = emits('content', seq([
+    [opt(CharData)],
+    // opt(CharData(ii)),
+    [zom(seq([
+      [alt([
+        [element],
+        [Reference],
+        [CDSect],
+        [PI],
+        [Comment],
+      ])],
+      [opt(CharData)],
+    ]))],
+  ]))
+  const document = seq([
+    // opt(ranges2('\xef\xbb\xbf', '\xfe\xff', '\xff\xfe'), 0), 
+    [prolog], 
+    [element], 
+    [zom(Misc)],
+  ], 'DOCUMNET')
+
+  const Char = codePointRanges(0x09, 0x0A, 0x0D, [0x20, 0xD7FF], [0xE000, 0xFFFD], [0x10000, 0x10FFFF])
+
+
+
+
 
   // `<Name Attribute/>`
 
