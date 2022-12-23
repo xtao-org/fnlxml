@@ -1,5 +1,7 @@
 import {fnlxml, resolveEntity2} from './fnlxml.js'
 
+// todo: find an xml test suite
+
 const m = new Map()
 const stream = fnlxml({
   end() {
@@ -79,10 +81,12 @@ const stream2 = fnlxml({
 
     else if (name === 'AttName') ret += `${str}=[`
 
-    // else if (name === 'AttName') ret += `${str} [`
-    // else if (name === 'FirstAttrS') {
-    //   hasAttrs = true
-    //   ret += '['
+    // else if (name === 'AttName') {
+    //   if (hasAttrs === false) {
+    //     hasAttrs = true
+    //     ret += '['
+    //   }
+    //   ret += `${str} [`
     // }
     // else if (name === 'STagC' || name === 'EETagC') {
     //   if (hasAttrs) {

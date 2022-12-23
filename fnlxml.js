@@ -211,19 +211,53 @@ export const fnlxml = (next) => {
     lit('?>'),
   ])
 
+  //  S 'version' Eq ("'" VersionNum "'" | '"' VersionNum '"')
   const VersionInfo = (ii) => seq([
     S(),
     lit('version'),
     Eq(),
-    // todo: see XML grammar
     alt([
-      lit("'1.0'"),
-      lit('"1.0"'),
+      seq([char("'"), [VersionNum], char("'")]),
+      seq([char('"'), [VersionNum], char('"')]),
     ]),
   ])
 
-  const EncodingDecl = () => todo("EncodingDecl")
-  const SDDecl = () => todo("SDDecl")
+  // '1.' [0-9]+
+  const VersionNum = () => seq([
+    lit('1.'),
+    oom(() => range('0', '9')),
+  ])
+
+  // S 'encoding' Eq ('"' EncName '"' | "'" EncName "'" )
+  const EncodingDecl = () => seq([
+    [S],
+    lit('encoding'),
+    [Eq],
+    alt([
+      seq([char("'"), [EncName], char("'")]),
+      seq([char('"'), [EncName], char('"')]),
+    ])
+  ])
+  // [A-Za-z] ([A-Za-z0-9._] | '-')*    /* Encoding name contains only Latin characters */
+  const EncName = () => seq([
+    ranges(['A', 'Z'], ['a', 'z']),
+    zom(() => alt([
+      ranges(['A', 'Z'], ['a', 'z'], ['0', '9']),
+      char('.'),
+      char('_'),
+      char('-'),
+    ]))
+  ])
+  // S 'standalone' Eq (("'" ('yes' | 'no') "'") | ('"' ('yes' | 'no') '"'))     [VC: Standalone Document Declaration]
+  const SDDecl = () => seq([
+    [S],
+    lit('standalone'),
+    [Eq],
+    alt([
+      seq([char("'"), alt([lit('yes'), lit('no')]), char("'")]),
+      seq([char('"'), alt([lit('yes'), lit('no')]), char('"')]),
+    ])
+  ])
 
   const Misc = (ii) => alt([
     [Comment],
@@ -241,11 +275,74 @@ export const fnlxml = (next) => {
     char('>'),
   ])
 
-  const ExternalID = () => todo('ExternalID')
+  // ExternalID ::= 'SYSTEM' S SystemLiteral | 'PUBLIC' S PubidLiteral S SystemLiteral
+  const ExternalID = () => alt([
+    seq([
+      lit('SYSTEM'),
+      [S],
+      [SystemLiteral],
+    ]),
+    seq([
+      lit('PUBLIC'),
+      [S],
+      [PubidLiteral],
+      [S],
+      [SystemLiteral]
+    ])
+  ])
+
+  // SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")
+  const SystemLiteral = () => alt([
+    seq([
+      char('"'),
+      zom(() => not('"')),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(() => not("'")),
+      char("'"),
+    ]),
+  ])
+  // '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
+  const PubidLiteral = () => alt([
+    seq([
+      char('"'),
+      zom(PubidChar),
+      char('"'),
+    ]),
+    seq([
+      char("'"),
+      zom(todo('PubidChar - "\'"')),
+      char("'"),
+    ]),
+  ])
+  // #x20 | #xD | #xA | [a-zA-Z0-9] | [-'()+,./:=?;!*#@$_%]
+  const piclr = []
+  const piclrstr = `-'()+,./:=?;!*#@$_%`
+  for (let i = 0; i < piclrstr.length; ++i) {
+    piclr.push(piclrstr.codePointAt(i))
+  }
+  const picaz = ['a'.codePointAt(0), 'z'.codePointAt(0)]
+  const picAZ = ['A'.codePointAt(0), 'Z'.codePointAt(0)]
+  const pic09 = ['0'.codePointAt(0), '9'.codePointAt(0)]
+  const PubidChar = () => codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
+
   const intSubset = () => todo('intSubset')
 
+  // original: 
+  // element ::= EmptyElemTag | STag content ETag 
+  //  EmptyElemTag ::= '<' Name (S Attribute)* S? '/>'    [WFC: Unique Att Spec]
+  // STag ::= '<' Name (S Attribute)* S? '>'    [WFC: Unique Att Spec]
+  // ETag ::= '</' Name S? '>'
+
+  // adjusted:
+  // element ::= STag1 (EETagc | STagC content ETag)
+  // the common part between STag and ETag:
+  // STag1 ::= '<' Name (S Attribute)? (S Attribute)* S?
+  // STagC ::= '>'
+  // EETagC ::= '/>
   const element = (ii) => {
-    // console.log("ELELEMENENT2")
     return seq([
       [STag1], 
       alt([
@@ -258,37 +355,12 @@ export const fnlxml = (next) => {
   const STag1 = (ii) => emits('STag1', ii, seq([
     char('<'),
     [ii => emits('STagName', ii, Name(ii))],
-    opt(seq([[ii => emits('FirstAttrS', ii, S(ii))], [Attribute]])),
     zom(() => seq([S(), [Attribute]])),
     opt(S()),
   ]))
 
   const STagC = (ii) => emits('STagC', ii, char('>'))
   const EETagC = (ii) => emits('EETagC', ii, lit('/>'))
-
-  // const element = (ii) => {
-  //   console.log("ELELEMENENT")
-  //   return alt([
-  //     EmptyElemTag(), 
-  //     seq([[STag], [content], [ETag]], -1),
-  //   ], ii)
-  // }
-
-  // const EmptyElemTag = (ii) => seq([
-  //   char('<'), 
-  //   Name(), 
-  //   zom(() => seq([S(), [Attribute]])), 
-  //   opt(S()), 
-  //   lit('/>'),
-  // ], ii)
-
-  // const STag = (ii) => emits('STag', ii, seq([
-  //   char('<'),
-  //   Name(),
-  //   zom(() => seq([S(), [Attribute]])),
-  //   opt(S()),
-  //   char('>'),
-  // ], ii))
 
   const ETag = (ii) => emits('ETag', ii, seq([
     lit('</'),
@@ -312,41 +384,6 @@ export const fnlxml = (next) => {
     ]))
   ]))
   
-  // {
-  //   let chunks = [getCurrentChunk()]
-  //   const uccb = registerChunkCb((chunk) => {
-  //     chunks.push(chunk)
-  //   })
-
-  //   const ondone = (jj) => {
-  //     console.log(chunks)
-  //     const lastChunk = chunks.at(-1)
-  //     const lcl = lastChunk.length
-  //     const combined = chunks.join('')
-  //     const slice = combined.slice(ii + 1, -lcl + jj - 1)
-
-  //     chunks = []
-
-  //     console.log('onDONWE')
-
-  //     next.emit('content', slice)
-  //     return uccb()
-  //   }
-  //   return seq([
-  //     // [ii => opt(CharData(ii))],
-  //     opt(CharData(ii)),
-  //     zom(() => seq([
-  //       alt([
-  //         [element],
-  //         Reference(),
-  //         CDSect(),
-  //         PI(),
-  //         Comment(),
-  //       ], -1),
-  //       [ii => opt(CharData(ii))],
-  //     ]))
-  //   ], ii, ondone)
-  // }
 
   const Name = (ii) => seq([NameStartChar(), zom(NameChar)])
   const Attribute = (ii) => emits('Attribute', ii, seq([
