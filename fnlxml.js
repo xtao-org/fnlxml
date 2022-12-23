@@ -58,25 +58,10 @@ export const fnlxml = (next) => {
     return currentChunk
   }
 
-  const seq = (its_, debugName) => (ii = null) => {
-    let its = [...its_]
+  const seq = (its, debugName) => (ii = null) => {
     let p = 0
-    // console.log("SEQ INIT", p, ii, debugName)
-    if (Array.isArray(its[p]) && ii !== null) {
-
-      // hm? ii or ii - 1
-      const jj = ii
-      its[p] = its[p][0](jj)
-    }
+    let it = its[p][0](ii)
     const eat = (c, i) => {
-      // console.log("SEQ", c, i, ii, debugName, p)
-      const rit = its[p]
-      if (Array.isArray(rit)) {
-        // const jj = i - 1
-        const jj = i
-        its[p] = rit[0](jj)
-      }
-      const it = its[p]
       const [sname, j] = it(c, i)
       if (sname === 'fail') return ['fail', j]
       if (sname === 'done') {
@@ -86,26 +71,19 @@ export const fnlxml = (next) => {
           // console.log("SEQ DONE", c, i, debugName, p)
           return ['done', j]
         }
+        // x = true
+        it = its[p][0](j)
       }
       return ['pending', j]
     }
     return eat
   }
 
-  const alt = (its_, debugName) => (ii = null) => {
-    let its = [...its_]
+  const alt = (its, debugName) => (ii = null) => {
     let p = 0
+    let it = its[p][0](ii)
     // console.log("ALT INIT", ii, its, debugName)
     const eat = (c, i) => {
-      // console.log("ALT", c, i, debugName)
-      // if (ii === null) ii = i - 1
-      if (ii === null) ii = i
-      const rit = its[p]
-      if (Array.isArray(rit)) {
-        its[p] = rit[0](ii)
-      }
-      const it = its[p]
-      // if (typeof it !== 'function') console.log(it, its, its.length, p)
       const s = it(c, i)
       const [sname, j] = s
       if (sname === 'fail') {
@@ -113,6 +91,7 @@ export const fnlxml = (next) => {
         if (p >= its.length) {
           return ['fail', j]
         }
+        it = its[p][0](ii)
         return ['pending', ii]
       }
       return [sname, j]
