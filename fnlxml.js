@@ -809,6 +809,8 @@ export const fnlxml = (next) => {
   let status = ['initial', 0], i = 0
 
   const start = document(0)
+  const iter = wrapIter()
+  i = 0
 
   return {
     chunk(str) {
@@ -816,12 +818,15 @@ export const fnlxml = (next) => {
       for (const cb of ccbs) {
         cb(str)
       }
-      i = 0
-      const iter = wrapIter(str)
+      iter.iter(str)
       while (true) {
         if (status[0] === 'done') throw Error(`Done too early ${i} ${str.slice(i)}`)
         const {done, value} = iter.next()
-        if (done) break
+        if (done) {
+          iter.pop()
+          // console.log(done, value, iter.debug())
+          break
+        }
         const c = value
         status = start(c, i)
 
@@ -866,12 +871,21 @@ export const toAsciiAzUppercase = (c) => {
   return c
 }
 
-const wrapIter = (str, maxbuflen = 256) => {
-  const iter = str[Symbol.iterator]()
+const wrapIter = (maxbuflen = 256) => {
+  let iter
   const buf = []
   let rewindex = 0
 
   return {
+    debug() {
+      console.log(iter, buf, rewindex)
+    },
+    iter(str) {
+      iter = str[Symbol.iterator]()
+    },
+    pop() {
+      buf.pop()
+    },
     next() {
       if (rewindex < 0) return buf.at(rewindex++)
       const next = iter.next()
