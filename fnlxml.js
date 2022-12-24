@@ -107,8 +107,6 @@ export const fnlxml = (next) => {
       if (c === undefined) {
         return ['done', i]
       }
-      // if (ii === null) ii = i - 1
-      if (ii === null) ii = i
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
         // console.log("ZOM FAIL", c, i, ii)
@@ -116,7 +114,6 @@ export const fnlxml = (next) => {
       }
       if (sname === 'done') {
         ii = j
-        // ii = j + 1
         it = itc(j)
       }
       return ['pending', j]
@@ -130,18 +127,17 @@ export const fnlxml = (next) => {
     let it = itc(ii)
     const eat = (c, i) => {
       // console.log("OOOM", ii, c, i, debugName)
-      // if (ii === -1) ii = i - 1
-      if (ii === null) ii = i
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
-        // if (cnt === 0) return ['fail', i]
         if (cnt === 0) return ['fail', j]
         // console.log('oom done')
         return ['done', ii]
       }
       if (sname === 'done') {
+        // todo?: perhaps there should be a separate variable from ii that gets updated after each instance is matched
+        // then ii can mark the beginning of the entire sequence -- but atm that's not necessary
+        // same applies to zom and zomChars...
         ii = j
-        // ii = j + 1
         cnt += 1
         it = itc(ii)
       }
@@ -168,35 +164,26 @@ export const fnlxml = (next) => {
     return eat
   }
 
-  const charsUntilToken = (token) => (ii = null) => {
-    let cend = lit(token)(ii)
-    let cnt = 0
+  const zomCharsExcludingToken = (token) => (ii) => {
+    const makeTokenMatcher = lit(token)
     const itc = Char
     let it = Char(ii)
+    const indexToTokenMatcher = new Map()
     return (c, i) => {
-      // if (ii === -1) ii = i - 1
-      if (ii === null) ii = i
-
-      const es = cend(c, i)
-      if (es[0] === 'fail') {
-        cend = lit(token)(ii)
-      } else if (es[0] === 'done') {
-        // console.log('DONE', es)
-        // console.log("*************\n\n\n", es[1] - token.length, '\n\n\n*********')
-        return [es[0], es[1] - token.length]
+      indexToTokenMatcher.set(i, makeTokenMatcher(ii))
+      for (const [index, matcher] of indexToTokenMatcher) {
+        const [sname, j] = matcher(c, i)
+        if (sname === 'fail') indexToTokenMatcher.delete(index)
+        else if (sname === 'done') {
+          return [sname, j - token.length]
+        }
       }
 
       const [sname, j] = it(c, i)
       if (sname === 'fail') {
-        // if (cnt === 0) return ['fail', i]
-        if (cnt === 0) return ['fail', j]
-        // console.log('oom done')
         return ['done', ii]
-      }
-      if (sname === 'done') {
+      } else if (sname === 'done') {
         ii = j
-        // ii = j + 1
-        cnt += 1
         it = itc(ii)
       }
       return ['pending', j]
@@ -422,7 +409,9 @@ export const fnlxml = (next) => {
   const picaz = ['a'.codePointAt(0), 'z'.codePointAt(0)]
   const picAZ = ['A'.codePointAt(0), 'Z'.codePointAt(0)]
   const pic09 = ['0'.codePointAt(0), '9'.codePointAt(0)]
-  const PubidChar = codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclrstr)
+  const PubidChar = codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclr)
+  // PubidChar - "'"
+  const PubidChar2 = codePointRanges(0x20, 0xD, 0xA, picaz, picAZ, pic09,  ...piclr.filter(cp => cp !== "'".codePointAt(0)))
   // '"' PubidChar* '"' | "'" (PubidChar - "'")* "'"
   const PubidLiteral = alt([
     seq([
@@ -432,7 +421,7 @@ export const fnlxml = (next) => {
     ]),
     seq([
       char("'"),
-      zom(todo('PubidChar - "\'"')),
+      zom(PubidChar2),
       char("'"),
     ]),
   ])
@@ -653,13 +642,13 @@ export const fnlxml = (next) => {
       // todo: same as comment & cdata, except should probly backtrack to before ?> after it's found
       // or is that overcomplicating it?
       // this PITarget and S create a problem here
-      charsUntilToken('?>'),
+      zomCharsExcludingToken('?>'),
     ])),
     lit('?>'),
   ], 'PI')
   const Comment = emits('Comment', seq([
     lit('<!--'),
-    charsUntilToken('-->'),
+    zomCharsExcludingToken('-->'),
     lit('-->'),
   ], 'COMMENT'))
   // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
@@ -780,7 +769,7 @@ export const fnlxml = (next) => {
       seq([STagC, content, ETag]),
     ]),
   ])(ii)
-  const CData = emits('CData', charsUntilToken(']]>')) 
+  const CData = emits('CData', zomCharsExcludingToken(']]>')) 
   const CDSect = seq([
     emits('openCData', lit('<![CDATA[')), 
     CData, 
@@ -801,7 +790,7 @@ export const fnlxml = (next) => {
     ])),
   ]))
   const document = seq([
-    // opt(ranges2('\xef\xbb\xbf', '\xfe\xff', '\xff\xfe'), 0), 
+    // opt(ranges2('\xef\xbb\xbf', '\xfe\xff', '\xff\xfe')), 
     prolog, 
     element, 
     zom(Misc),
@@ -817,7 +806,7 @@ export const fnlxml = (next) => {
 
 
 
-  let status, i = 0
+  let status = ['initial', 0], i = 0
 
   const start = document(0)
 
@@ -828,16 +817,34 @@ export const fnlxml = (next) => {
         cb(str)
       }
       i = 0
-      for (; i < str.length; ) {
-        const c = str[i]
+      const iter = wrapIter(str)
+      while (true) {
+        if (status[0] === 'done') throw Error(`Done too early ${i} ${str.slice(i)}`)
+        const {done, value} = iter.next()
+        if (done) break
+        const c = value
         status = start(c, i)
+
+        if (status[0] === 'fail') throw Error(`Parsing failed: ${status}`)
+
+        const d = status[1] - i
+        // console.log(c, i, d, status)
+        if (d <= 0) iter.rewind(d - 1)
         i = status[1]
-        if (i < 0) throw Error(`can't backtrack to previous chunk(s)! ${i}`)
-        if (status[0] !== 'pending') {
-          if (status[0] === 'done' && i != str.length - 1) throw Error(`done too early ${i} ${str.slice(i)}`)
-          else if (status[0] === 'fail') throw Error(`Unexpected status: ${status}`)
-        }
       }
+
+      // for (; i < str.length; ) {
+      //   const c = str.charAt(i)
+      //   status = start(c, i)
+      //   // DEBUG:
+      //   console.log(c, i, status)
+      //   i = status[1]
+      //   if (i < 0) throw Error(`can't backtrack to previous chunk(s)! ${i}`)
+      //   if (status[0] !== 'pending') {
+      //     if (status[0] === 'done' && i != str.length - 1) throw Error(`done too early ${i} ${str.slice(i)}`)
+      //     else if (status[0] === 'fail') throw Error(`Unexpected status: ${status}`)
+      //   }
+      // }
     },
     end() {
       status = start(undefined, i)
@@ -857,4 +864,26 @@ export const toAsciiAzUppercase = (c) => {
     return String.fromCharCode(c.charCodeAt(0) - 0x20)
   }
   return c
+}
+
+const wrapIter = (str, maxbuflen = 256) => {
+  const iter = str[Symbol.iterator]()
+  const buf = []
+  let rewindex = 0
+
+  return {
+    next() {
+      if (rewindex < 0) return buf.at(rewindex++)
+      const next = iter.next()
+      if (buf.length > maxbuflen) buf.shift()
+      // todo: maybe push next.value ?? next.done instead
+      buf.push(next)
+      return next // or next.value ?? next.done
+    },
+    rewind(d) {
+      rewindex += d
+      // console.log(buf.length, rewindex)
+      if (buf.length + rewindex < 0) throw Error(`Can't rewind beyond buffer length (${buf.length}, max: ${maxbuflen})!`)
+    }
+  }
 }
