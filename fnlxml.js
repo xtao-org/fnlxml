@@ -1,36 +1,5 @@
 // todo: eof as character (.end())
 
-const replaceEntities = (str) => {
-  let ret = '', mode = 'normal', ent = '', t = 0
-  for (let i = 0; i < str.length; ++i) {
-    const c = str[i]
-    if (mode === 'normal') {
-      if (c === '&') {
-        ret += str.slice(t, i)
-        t = i + 1
-        mode = 'ent'
-      }
-    } else {
-      if (c === ';') {
-        ent = str.slice(t, i)
-        ret += resolveEntity(ent)
-        t = i + 1
-        mode = 'normal'
-      }
-    }
-  }
-  ret += str.slice(t)
-  return ret
-}
-const resolveEntity = (ent) => {
-  if (ent === 'lt') return '<'
-  if (ent === 'gt') return '>'
-  if (ent === 'quot') return '"'
-  if (ent === 'apos') return "'"
-  if (ent === 'amp') return "&"
-  throw Error(`Unknown entity: ${ent}`)
-}
-
 // note: entities in HTML are ASCII-case-insensitive
 export const resolveEntity2 = (ent) => {
   if (ent === '&lt;') return '<'
