@@ -1,6 +1,3 @@
-
-
-// todo: backtracking on the edge of chunk
 // todo: eof as character (.end())
 
 const replaceEntities = (str) => {
@@ -877,12 +874,14 @@ const wrapIter = (maxbuflen = 256) => {
   let rewindex = 0
 
   return {
+    // todo: remove?
     debug() {
       console.log(iter, buf, rewindex)
     },
     iter(str) {
       iter = str[Symbol.iterator]()
     },
+    // ?todo: maybe there is a nicer way? maybe not
     pop() {
       buf.pop()
     },
