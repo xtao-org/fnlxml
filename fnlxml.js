@@ -1,7 +1,7 @@
 // todo: eof as character (.end())
 
 // note: entities in HTML are ASCII-case-insensitive
-export const resolveEntity2 = (ent) => {
+export const resolveEntity = (ent) => {
   if (ent === '&lt;') return '<'
   if (ent === '&gt;') return '>'
   if (ent === '&quot;') return '"'
