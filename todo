@@ -1,0 +1,6 @@
+html void elements
+  must be hardcoded
+
+  alternatively don't expect closing tags to go with opening tags
+
+  hardcoding necessary on some level anyway
