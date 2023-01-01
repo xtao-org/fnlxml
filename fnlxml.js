@@ -616,7 +616,7 @@ export const fnlxml = (next) => {
     lit('<!--'),
     zomCharsExcludingToken('-->'),
     lit('-->'),
-  ], 'COMMENT'))
+  ], 'Comment'))
   // elementdecl | AttlistDecl | EntityDecl | NotationDecl | PI | Comment     [VC: Proper Declaration/PE Nesting]
   const markupdecl = alt([
     elementdecl,
@@ -650,13 +650,13 @@ export const fnlxml = (next) => {
     Comment,
     PI,
     S,
-  ], 'MISC')
+  ], 'Misc')
   const prolog = seq([
     opt(XMLDecl),
     // opt(XMLDecl()),
     zom(Misc),
     opt(seq([doctypedecl, zom(Misc)])),
-  ], 'PROLOG')
+  ], 'prolog')
 
 
   // const AttValue = (ii) => alt([
@@ -760,7 +760,7 @@ export const fnlxml = (next) => {
     prolog, 
     element, 
     zom(Misc),
-  ], 'DOCUMNET')
+  ], 'document')
 
   const Char = codePointRanges(0x09, 0x0A, 0x0D, [0x20, 0xD7FF], [0xE000, 0xFFFD], [0x10000, 0x10FFFF])
 
